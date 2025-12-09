@@ -111,7 +111,7 @@ C4Context
 
     Rel(user, agent, "NL-запросы", "A2A UI Evolution / интеграции")
     Rel(agent, fm, "POST /chat/completions", "LLM_API_BASE=https://foundation-models.api.cloud.ru/v1")
-    Rel(agent, mcp_moex, "MCP (streamable-http/SSE)", "MCP_URL")
+    Rel(agent, mcp_moex, "MCP (streamable-http)", "MCP_URL")
     Rel(agent, mcp_rag, "MCP (опционально)", "MCP_URL")
     Rel(mcp_moex, moex_iss, "REST-запросы", "HTTPS JSON")
     Rel(agent, monitoring, "Трейсы/метрики агента")
@@ -164,6 +164,8 @@ C4Context
   - `ENABLE_PHOENIX=true/false`
   - `PHOENIX_ENDPOINT=...`
   - `PHOENIX_PROJECT_NAME=moex-market-analyst`
+  - `ENABLE_MONITORING=true/false`
+  - `OTEL_ENDPOINT=...`
 
 **Формат A2A-взаимодействия** (формальный JSON-контракт вынесен в `SPEC_moex-iss-mcp.md` / раздел A2A).
 
@@ -176,6 +178,24 @@ C4Context
   - `output.tables[]` — табличные данные (для UI/отчётов);
   - `output.debug` — опциональный блок (план, tool_calls, сырой ответ LLM).
 
+#### 5.1.5. Agent Card (A2A)
+
+Агент обязан публиковать корректный **Agent Card** в соответствии со спецификацией A2A Evolution AI Agents. Agent Card как минимум содержит:
+
+- идентификатор агента (`AGENT_NAME`, `AGENT_VERSION`);
+
+- человекочитаемое описание (`AGENT_DESCRIPTION`);
+
+- сведения о поддерживаемых протоколах (HTTP + JSON, A2A);
+
+- информацию об аутентификации (использование сервисного аккаунта Evolution);
+
+- список задействованных MCP-серверов (URI из `MCP_URL`);
+
+- ограничения и особенности (например, домен данных — рынок Мосбиржи, только чтение).
+
+Agent Card используется платформой и внешними клиентами для автоматического обнаружения возможностей агента.
+
 ### 5.2. MCP-сервер `moex-iss-mcp`
 
 **Роль:**
@@ -186,9 +206,10 @@ C4Context
 
 **Стек:**
 
-- Python 3.12.
-- **FastMCP / modelcontextprotocol**.
-- HTTP-клиент (`httpx`/`requests`) с таймаутами и ретраями.
+- Python 3.12
+- **FastMCP / modelcontextprotocol** с транспортом `streamable-http`;
+  сервер запускается с параметром `transport="streamable-http"`.
+- HTTP-клиент (`httpx`/`requests`) с тайм-аутами и ретраями
 
 **Tools (минимум):**
 
@@ -204,13 +225,14 @@ C4Context
 - `MOEX_ISS_BASE_URL=https://iss.moex.com/iss/`
 - `MOEX_ISS_RATE_LIMIT_RPS=5`
 - `MOEX_ISS_TIMEOUT_SECONDS=10`
-- `OTEL_EXPORTER_OTLP_ENDPOINT=...`
+- `ENABLE_MONITORING=true/false`
+- `OTEL_ENDPOINT=...`
 - `OTEL_SERVICE_NAME=moex-iss-mcp`
 - (опционально) `MOEX_API_KEY=...`
 
 **HTTP-эндпоинты MCP-сервера:**
 
-- `/mcp` — MCP-транспорт (streamable-http / SSE).
+- `/mcp` — MCP-транспорт (streamable-http).
 - `/health` — healthcheck (`{"status": "ok"}`).
 - `/metrics` — Prometheus-метрики.
 

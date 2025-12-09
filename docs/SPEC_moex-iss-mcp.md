@@ -12,7 +12,7 @@
 ## 1. Общие сведения
 
 - MCP-сервер: `moex-iss-mcp`
-- Транспорт: FastMCP (HTTP / SSE)
+- Транспорт: FastMCP (`streamable-http`)
 - Основной endpoint: `/mcp`
 - Дополнительные endpoints:
   - `/health` — `{"status":"ok"}`;
@@ -86,11 +86,7 @@
         "volume": { "type": "number" },
         "value": { "type": "number" }
       },
-      "required": [
-        "last_price",
-        "price_change_abs",
-        "price_change_pct"
-      ],
+      "required": ["last_price", "price_change_abs", "price_change_pct"],
       "additionalProperties": true
     },
     "metrics": {
@@ -166,7 +162,7 @@
 }
 ```
 
-*(валидация `to_date >= from_date` реализуется на уровне Pydantic, вне JSON Schema)*
+_(валидация `to_date >= from_date` реализуется на уровне Pydantic, вне JSON Schema)_
 
 #### Output JSON Schema
 
@@ -344,8 +340,12 @@
     {
       "name": "get_index_constituents_metrics",
       "description": "Get index composition and per-constituent metrics.",
-      "input_schema": { "$ref": "./schemas/get_index_constituents_metrics_input.json" },
-      "output_schema": { "$ref": "./schemas/get_index_constituents_metrics_output.json" }
+      "input_schema": {
+        "$ref": "./schemas/get_index_constituents_metrics_input.json"
+      },
+      "output_schema": {
+        "$ref": "./schemas/get_index_constituents_metrics_output.json"
+      }
     }
   ]
 }
