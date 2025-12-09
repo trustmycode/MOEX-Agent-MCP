@@ -8,6 +8,7 @@ estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-028, TASK-2025-029, TASK-2025-030, TASK-2025-031, TASK-2025-032]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Обеспечивает стабильный запуск MCP и агента локально и в Evolution AI Agents, включая smoke-тесты."
@@ -37,4 +38,3 @@ audit_log:
 ## Заметки
 
 Эта задача агрегирует подпункты 3.1–3.5 плана архитектора (Фаза 3).
-

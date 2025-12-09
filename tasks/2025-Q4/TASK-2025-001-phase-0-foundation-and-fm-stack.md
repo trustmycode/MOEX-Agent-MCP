@@ -8,6 +8,7 @@ estimate: 8h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-009, TASK-2025-010, TASK-2025-011]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: low
 benefit: "Синхронизация требований, архитектуры и SPEC с финальным выбором FM-стека и правил по датам."
@@ -41,4 +42,3 @@ audit_log:
 ## Заметки
 
 Исходник требований и уточнений — Q&A по хакатону и итоговый план архитектора (Фаза 0, задачи 0.1–0.3).
-

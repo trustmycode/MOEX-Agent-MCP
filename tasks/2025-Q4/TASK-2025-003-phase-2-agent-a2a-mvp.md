@@ -8,6 +8,7 @@ estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-020, TASK-2025-021, TASK-2025-022, TASK-2025-023, TASK-2025-024, TASK-2025-025, TASK-2025-026, TASK-2025-027]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Даёт полностью рабочий агент, который через A2A использует MCP и формирует отчёты для бизнес-пользователя."
@@ -39,4 +40,3 @@ audit_log:
 ## Заметки
 
 Эта задача агрегирует подпункты 2.1–2.8 плана архитектора (Фаза 2).
-

@@ -8,6 +8,7 @@ estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-033, TASK-2025-034, TASK-2025-035]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Добавляет текстовый контекст (методики, регламенты, шаблоны отчётов) для пояснений и обоснований в ответах агента."
@@ -35,4 +36,3 @@ audit_log:
 ## Заметки
 
 Эта задача агрегирует подпункты 4.1–4.3 плана архитектора (Фаза 4).
-

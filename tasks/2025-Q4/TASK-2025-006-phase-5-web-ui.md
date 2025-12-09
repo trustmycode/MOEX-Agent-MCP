@@ -8,6 +8,7 @@ estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-036, TASK-2025-037, TASK-2025-038]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Даёт наглядную демо-витрину для питча и использования агентных сценариев через веб-интерфейс."
@@ -35,4 +36,3 @@ audit_log:
 ## Заметки
 
 Эта задача агрегирует подпункты 5.1–5.3 плана архитектора (Фаза 5).
-

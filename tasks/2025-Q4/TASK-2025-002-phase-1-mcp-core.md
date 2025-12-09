@@ -8,6 +8,7 @@ estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
 updated: 2025-12-09
+children: [TASK-2025-012, TASK-2025-013, TASK-2025-014, TASK-2025-015, TASK-2025-016, TASK-2025-017, TASK-2025-018, TASK-2025-019]
 arch_refs: [ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Даёт стабильный MCP-сервер с основными бизнес-инструментами и наблюдаемостью."
@@ -38,4 +39,3 @@ audit_log:
 ## Заметки
 
 Эта задача агрегирует подпункты 1.1–1.8 плана архитектора (Фаза 1).
-
