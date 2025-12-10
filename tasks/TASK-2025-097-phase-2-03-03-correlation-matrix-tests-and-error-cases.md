@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-097
 title: "Фаза 2.3.3. Тесты и обработка ошибок для compute_correlation_matrix"
-status: backlog
+status: done
 priority: medium
 type: chore
 estimate: 6h
@@ -14,6 +14,7 @@ risk: low
 benefit: "Гарантирует предсказуемое поведение compute_correlation_matrix в ошибочных сценариях и покрытие тестами."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after adding coverage for success/error flows and SDK/validation mapping"}
 ---
 
 ## Описание
@@ -44,4 +45,3 @@ audit_log:
 
 - Детали текстов ошибок могут быть уточнены в SPEC risk-analytics-mcp
   (`TASK-2025-079`).
-

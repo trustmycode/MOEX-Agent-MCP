@@ -108,6 +108,26 @@
 
    - упаковывает результат в понятный текст с акцентом на ключевые выводы.
 
+#### Вспомогательный инструмент `compute_correlation_matrix`
+
+- **Назначение:** построение матрицы корреляций дневных доходностей для top-N бумаг портфеля (drill-down по риск-профилю).
+- **Вход:**
+  - `tickers[]` — минимум два уникальных тикера, нормализуются в верхний регистр;
+  - `from_date`, `to_date` — окно дат, проверяется по лимиту глубины (`RISK_MAX_LOOKBACK_DAYS`).
+- **Выход:**
+  - `tickers[]` в порядке расчёта;
+  - `matrix[][]` — квадратная симметричная матрица, единицы на диагонали, значения в диапазоне [-1, 1];
+  - `metadata` — `from_date`, `to_date`, `method="pearson"`, `num_observations`, `iss_base_url`.
+- **Ошибки:**
+  - `TOO_MANY_TICKERS` — если `len(tickers) > RISK_MAX_CORRELATION_TICKERS` (дефолт 20, задаётся `RISK_MAX_CORRELATION_TICKERS`);
+  - `INVALID_TICKER`, `DATE_RANGE_TOO_LARGE`, `ISS_TIMEOUT`, `ISS_5XX` — маппинг исключений SDK;
+  - `INSUFFICIENT_DATA` — нет общих дат/наблюдений либо нулевая дисперсия ряда;
+  - `VALIDATION_ERROR` — пустые/дубликатные тикеры, `to_date < from_date`.
+- **Поведение:**
+  - OHLCV грузятся через `IssClient.get_ohlcv_series` (интервал 1d);
+  - дневные доходности считает `calculations.returns`, корреляции — `calculations.correlation` (Пирсон);
+  - лимиты и конфиг: `RISK_MAX_CORRELATION_TICKERS`, `RISK_MAX_LOOKBACK_DAYS`, `MOEX_ISS_BASE_URL`.
+
 ---
 
 ### 2.3. Scenario 9 — `cfo_liquidity_report`

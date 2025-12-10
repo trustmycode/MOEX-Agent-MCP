@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-094
 title: "Фаза 2.2.3. Реализация compute_portfolio_risk_basic и интеграционные тесты"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 10h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Делает доступным MCP-инструмент базового портфельного риск-анализа для агента и сценариев portfolio_risk."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after tool implementation and integration tests"}
 ---
 
 ## Описание
@@ -46,4 +47,3 @@ OHLCV, а также написать интеграционные тесты с
 
 - Поддержка advanced-метрик (VaR, stress-test) не входит в объём
   данной задачи и оформляется отдельно фазой 7.
-

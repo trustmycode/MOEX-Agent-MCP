@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-095
 title: "Фаза 2.3.1. Модуль расчёта матрицы корреляций"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 6h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Реализует численные функции расчёта корреляций на основе рядов доходностей."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after implementing correlation calculations and tests"}
 ---
 
 ## Описание
@@ -45,4 +46,3 @@ audit_log:
 
 - При необходимости модуль может быть расширен альтернативными
   методами оценки корреляций в roadmap-задачах.
-

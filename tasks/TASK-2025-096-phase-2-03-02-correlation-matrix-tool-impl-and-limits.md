@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-096
 title: "Фаза 2.3.2. Реализация compute_correlation_matrix и лимиты по тикерам"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 8h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Добавляет рабочий MCP-инструмент расчёта матрицы корреляций с контролем числа тикеров."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after implementing tool with limits and ISS integration"}
 ---
 
 ## Описание
@@ -46,4 +47,3 @@ audit_log:
 
 - Конкретное значение лимита и поведение при больших портфелях
   согласуется с задачами фазы PC (`TASK-2025-064`).
-

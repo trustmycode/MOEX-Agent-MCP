@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-092
 title: "Фаза 2.2.1. Модели входа/выхода для compute_portfolio_risk_basic"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 6h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Формализует контракт инструмента compute_portfolio_risk_basic через Pydantic-модели, согласованные с планируемым SPEC."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after model implementation and tests"}
 ---
 
 ## Описание
@@ -46,4 +47,3 @@ audit_log:
 
 - При необходимости часть моделей может быть переиспользована в
   других инструментах портфельного анализа в будущем.
-

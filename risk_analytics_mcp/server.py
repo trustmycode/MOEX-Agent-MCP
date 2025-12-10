@@ -9,10 +9,12 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
+from moex_iss_mcp.error_mapper import ErrorMapper
 from moex_iss_sdk import IssClient
 
 from .config import RiskMcpConfig
 from .telemetry import McpMetrics, McpTracing, NullMetrics, NullTracing
+from .tools import compute_correlation_matrix_tool, compute_portfolio_risk_basic_tool
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,7 @@ class RiskMcpServer:
     """
     Обёртка над FastMCP для risk-analytics-mcp.
 
-    На этом этапе реализованы только базовые endpoint'ы и регистрация
-    заглушек инструментов; бизнес-логика будет добавлена в следующих задачах.
+    Реализует compute_portfolio_risk_basic и compute_correlation_matrix.
     """
 
     def __init__(self, config: RiskMcpConfig) -> None:
@@ -35,7 +36,7 @@ class RiskMcpServer:
         )
         self.fastmcp = FastMCP(name="risk-analytics-mcp", instructions="Risk analytics MCP for MOEX portfolios.")
         self._register_routes()
-        self._register_stub_tools()
+        self._register_tools()
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -67,58 +68,97 @@ class RiskMcpServer:
             body, content_type = self.metrics.render()
             return PlainTextResponse(body, media_type=content_type)
 
-    def _register_stub_tools(self) -> None:
+    def _register_tools(self) -> None:
         """
         Зарегистрировать инструменты MCP.
         """
 
         def compute_portfolio_risk_basic(
-            tickers: List[str] | None = None, lookback_days: int | None = None
+            positions: List[Dict[str, Any]] | None = None,
+            from_date: str | None = None,
+            to_date: str | None = None,
+            rebalance: str = "buy_and_hold",
         ) -> Dict[str, Any]:
             tool_name = "compute_portfolio_risk_basic"
             start_ts = time.perf_counter()
             self.metrics.inc_tool_call(tool_name)
             with self.tracing.start_span(tool_name):
                 try:
-                    normalized_tickers = self._normalize_tickers(tickers)
-                    self._enforce_limits(normalized_tickers, lookback_days)
-                    return self._stub_payload(
-                        tool_name,
-                        normalized_tickers,
-                        lookback_days,
-                        message="Portfolio risk calculations are not implemented yet.",
+                    payload = {
+                        "positions": positions or [],
+                        "from_date": from_date,
+                        "to_date": to_date,
+                        "rebalance": rebalance,
+                    }
+                    output = compute_portfolio_risk_basic_tool(
+                        payload,
+                        self.iss_client,
+                        max_tickers=self.config.max_portfolio_tickers,
+                        max_lookback_days=self.config.max_lookback_days,
                     )
+                    if output.get("error"):
+                        self.metrics.inc_tool_error(tool_name, output["error"].get("error_type", "UNKNOWN"))
+                    return output
                 except Exception as exc:
-                    self.metrics.inc_tool_error(tool_name, type(exc).__name__)
-                    if isinstance(exc, ValueError):
-                        raise
-                    logger.exception("Error in compute_portfolio_risk_basic for tickers=%s", tickers)
-                    return self._not_implemented_payload(tool_name, normalized_tickers, lookback_days, error=str(exc))
+                    error_type = ErrorMapper.get_error_type_for_exception(exc)
+                    self.metrics.inc_tool_error(tool_name, error_type)
+                    logger.exception("Error in compute_portfolio_risk_basic for payload=%s", positions)
+                    return {
+                        "metadata": {"tool": tool_name},
+                        "data": None,
+                        "error": {
+                            "error_type": error_type,
+                            "message": str(exc) or "Unexpected error",
+                            "details": {"exception_type": type(exc).__name__},
+                        },
+                    }
                 finally:
                     self.metrics.observe_latency(tool_name, time.perf_counter() - start_ts)
 
         def compute_correlation_matrix(
-            tickers: List[str] | None = None, lookback_days: int | None = None
+            tickers: List[str] | None = None,
+            from_date: str | None = None,
+            to_date: str | None = None,
         ) -> Dict[str, Any]:
             tool_name = "compute_correlation_matrix"
             start_ts = time.perf_counter()
             self.metrics.inc_tool_call(tool_name)
             with self.tracing.start_span(tool_name):
                 try:
-                    normalized_tickers = self._normalize_tickers(tickers)
-                    self._enforce_limits(normalized_tickers, lookback_days)
-                    return self._stub_payload(
-                        tool_name,
-                        normalized_tickers,
-                        lookback_days,
-                        message="Correlation matrix calculation is not implemented yet.",
+                    payload = {
+                        "tickers": tickers or [],
+                        "from_date": from_date,
+                        "to_date": to_date,
+                    }
+                    output = compute_correlation_matrix_tool(
+                        payload,
+                        self.iss_client,
+                        max_tickers=self.config.max_correlation_tickers,
+                        max_lookback_days=self.config.max_lookback_days,
                     )
+                    if output.get("error"):
+                        self.metrics.inc_tool_error(tool_name, output["error"].get("error_type", "UNKNOWN"))
+                    return output
                 except Exception as exc:
-                    self.metrics.inc_tool_error(tool_name, type(exc).__name__)
-                    if isinstance(exc, ValueError):
-                        raise
+                    error_type = ErrorMapper.get_error_type_for_exception(exc)
+                    self.metrics.inc_tool_error(tool_name, error_type)
                     logger.exception("Error in compute_correlation_matrix for tickers=%s", tickers)
-                    return self._not_implemented_payload(tool_name, normalized_tickers, lookback_days, error=str(exc))
+                    return {
+                        "metadata": {
+                            "tool": tool_name,
+                            "tickers": tickers or [],
+                            "from_date": from_date,
+                            "to_date": to_date,
+                            "iss_base_url": self.iss_client.settings.base_url,
+                        },
+                        "tickers": tickers or [],
+                        "matrix": [],
+                        "error": {
+                            "error_type": error_type,
+                            "message": str(exc) or "Unexpected error",
+                            "details": {"exception_type": type(exc).__name__},
+                        },
+                    }
                 finally:
                     self.metrics.observe_latency(tool_name, time.perf_counter() - start_ts)
 
@@ -130,69 +170,4 @@ class RiskMcpServer:
         self.fastmcp._tools = {
             "compute_portfolio_risk_basic": SimpleNamespace(func=compute_portfolio_risk_basic),
             "compute_correlation_matrix": SimpleNamespace(func=compute_correlation_matrix),
-        }
-
-    def _enforce_limits(self, tickers: List[str], lookback_days: int | None) -> None:
-        """
-        Проверить лимиты по количеству тикеров и глубине истории.
-        """
-        if tickers and len(tickers) > self.config.max_portfolio_tickers:
-            raise ValueError(f"Too many tickers: {len(tickers)} > {self.config.max_portfolio_tickers}")
-        if lookback_days is not None:
-            if lookback_days <= 0:
-                raise ValueError("lookback_days must be positive")
-            if lookback_days > self.config.max_lookback_days:
-                raise ValueError(f"lookback_days exceeds limit {self.config.max_lookback_days}")
-
-    def _normalize_tickers(self, tickers: List[str] | None) -> List[str]:
-        if not tickers:
-            return []
-        return [t.strip().upper() for t in tickers if t and t.strip()]
-
-    def _stub_payload(
-        self,
-        tool_name: str,
-        tickers: List[str],
-        lookback_days: int | None,
-        *,
-        message: str,
-    ) -> Dict[str, Any]:
-        """
-        Общий ответ-заглушка для инструментов до появления бизнес-логики.
-        """
-        return {
-            "metadata": {
-                "tool": tool_name,
-                "tickers": tickers,
-                "lookback_days": lookback_days,
-                "iss_base_url": self.iss_client.settings.base_url,
-                "limits": {
-                    "max_portfolio_tickers": self.config.max_portfolio_tickers,
-                    "max_lookback_days": self.config.max_lookback_days,
-                },
-            },
-            "data": {
-                "status": "stub",
-                "message": message,
-            },
-            "error": None,
-        }
-
-    def _not_implemented_payload(
-        self,
-        tool_name: str,
-        tickers: List[str],
-        lookback_days: int | None,
-        *,
-        error: str,
-    ) -> Dict[str, Any]:
-        return {
-            "metadata": {
-                "tool": tool_name,
-                "tickers": tickers,
-                "lookback_days": lookback_days,
-                "iss_base_url": self.iss_client.settings.base_url,
-            },
-            "data": None,
-            "error": {"error_type": "NOT_IMPLEMENTED", "message": error},
         }

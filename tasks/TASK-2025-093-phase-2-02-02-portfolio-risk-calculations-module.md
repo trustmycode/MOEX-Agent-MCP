@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-093
 title: "Фаза 2.2.2. Модуль расчётов для compute_portfolio_risk_basic"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 8h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Выделяет чистые функции расчёта доходностей, волатильности, max drawdown и концентрации для портфеля."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after calculations and unit tests"}
 ---
 
 ## Описание
@@ -46,4 +47,3 @@ audit_log:
 
 - Более сложные метрики (VaR, stress-test, advanced beta) планируются
   в задачах фазы 7 и могут расширять модуль расчётов в будущем.
-

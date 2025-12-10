@@ -24,6 +24,7 @@ def _get_bool(value: Optional[str], *, default: bool = False) -> bool:
 DEFAULT_PORT = int(os.getenv("RISK_MCP_PORT", os.getenv("PORT", "8010")))
 DEFAULT_HOST = os.getenv("RISK_MCP_HOST", os.getenv("HOST", "0.0.0.0"))
 DEFAULT_MAX_PORTFOLIO_TICKERS = int(os.getenv("RISK_MAX_PORTFOLIO_TICKERS", "50"))
+DEFAULT_MAX_CORRELATION_TICKERS = int(os.getenv("RISK_MAX_CORRELATION_TICKERS", "20"))
 DEFAULT_MAX_LOOKBACK_DAYS = int(
     os.getenv("RISK_MAX_LOOKBACK_DAYS", os.getenv("MOEX_ISS_MAX_LOOKBACK_DAYS", str(MAX_LOOKBACK_DAYS)))
 )
@@ -41,6 +42,7 @@ class RiskMcpConfig:
     port: int = DEFAULT_PORT
     host: str = DEFAULT_HOST
     max_portfolio_tickers: int = DEFAULT_MAX_PORTFOLIO_TICKERS
+    max_correlation_tickers: int = DEFAULT_MAX_CORRELATION_TICKERS
     max_lookback_days: int = DEFAULT_MAX_LOOKBACK_DAYS
     enable_monitoring: bool = DEFAULT_ENABLE_MONITORING
     otel_endpoint: Optional[str] = DEFAULT_OTEL_ENDPOINT
@@ -50,6 +52,8 @@ class RiskMcpConfig:
     def __post_init__(self) -> None:
         if self.max_portfolio_tickers <= 0:
             raise ValueError("max_portfolio_tickers must be positive")
+        if self.max_correlation_tickers <= 0:
+            raise ValueError("max_correlation_tickers must be positive")
         if self.max_lookback_days <= 0:
             raise ValueError("max_lookback_days must be positive")
 
@@ -63,6 +67,9 @@ class RiskMcpConfig:
             host=os.getenv("RISK_MCP_HOST", os.getenv("HOST", DEFAULT_HOST)),
             max_portfolio_tickers=int(
                 os.getenv("RISK_MAX_PORTFOLIO_TICKERS", str(DEFAULT_MAX_PORTFOLIO_TICKERS))
+            ),
+            max_correlation_tickers=int(
+                os.getenv("RISK_MAX_CORRELATION_TICKERS", str(DEFAULT_MAX_CORRELATION_TICKERS))
             ),
             max_lookback_days=int(
                 os.getenv("RISK_MAX_LOOKBACK_DAYS", os.getenv("MOEX_ISS_MAX_LOOKBACK_DAYS", str(DEFAULT_MAX_LOOKBACK_DAYS)))
