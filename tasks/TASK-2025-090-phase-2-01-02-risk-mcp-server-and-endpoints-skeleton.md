@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-090
 title: "Фаза 2.1.2. Каркас FastMCP-сервера и endpoint'ы risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 6h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Поднимает рабочий FastMCP-сервер risk-analytics-mcp с базовыми endpoint'ами /mcp, /health, /metrics."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after FastMCP server entrypoint, /mcp health/metrics routes, and stub tools registered for risk-analytics-mcp"}
 ---
 
 ## Описание
@@ -41,4 +42,3 @@ FastMCP с transport="streamable-http", настраивающие маршру�
 
 - Реализацию бизнес-логики и телеметрии для tools следует выполнять в
   задачах `TASK-2025-077`–`TASK-2025-079` и `TASK-2025-091`.
-

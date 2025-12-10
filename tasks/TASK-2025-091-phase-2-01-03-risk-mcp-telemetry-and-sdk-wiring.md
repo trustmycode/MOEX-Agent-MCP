@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-091
 title: "Фаза 2.1.3. Телеметрия и подключение moex_iss_sdk в risk-analytics-mcp"
-status: backlog
+status: done
 priority: medium
 type: feature
 estimate: 6h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Обеспечивает корректное подключение SDK и базовую телеметрию для risk-analytics-mcp ещё до появления бизнес-логики."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after IssClient wiring, telemetry metrics/tracing, and metrics endpoint implemented for risk-analytics-mcp"}
 ---
 
 ## Описание
@@ -42,4 +43,3 @@ audit_log:
 
 - Конкретный стек телеметрии (Prometheus/OTEL) должен быть согласован
   с общими решениями по наблюдаемости в проекте.
-

@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-089
 title: "Фаза 2.1.1. Структура проекта и конфиг risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 6h
@@ -14,6 +14,7 @@ risk: medium
 benefit: "Создаёт минимально необходимую структуру пакета risk_analytics_mcp и конфигурацию окружения."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after risk_analytics_mcp package structure and config implemented with env loading and tests"}
 ---
 
 ## Описание
@@ -42,4 +43,3 @@ audit_log:
 ## Заметки
 
 - На этом этапе бизнес-логика tools может быть заглушена.
-
