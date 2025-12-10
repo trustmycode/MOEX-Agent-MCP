@@ -71,6 +71,20 @@
 - `data` — массив записей или объект;
 - `metrics` — агрегированные показатели.
 
+### 2.3. Сценарии портфельного риска и ликвидности (`risk-analytics-mcp`)
+
+**FR-RISK-1. Поддержка сценариев 5/7/9**
+
+Агент должен уметь выполнять сценарии `issuer_peers_compare`, `portfolio_risk`, `cfo_liquidity_report`, опираясь на `ScenarioTemplate` и JSON-контракты из `SCENARIOS_PORTFOLIO_RISK.md`.
+
+**FR-RISK-2. Согласованность со схемами**
+
+Вызовы `risk-analytics-mcp` должны формироваться и проверяться по схемам: `PortfolioRiskInput/Report`, `RebalanceInput/Proposal`, `CfoLiquidityReportInput/Report`. Этот документ является SSOT для планировщика, валидации и авто-тестов.
+
+**FR-RISK-3. Связь MCP слоёв**
+
+`risk-analytics-mcp` получает рыночные данные только через `moex-iss-mcp` (а не напрямую в ISS), чтобы централизовать контроль над лимитами и ошибками.
+
 ---
 
 ## 3. Требования к MCP-серверу (подробно)
@@ -115,6 +129,12 @@ MCP должен:
   - description (EN),
   - input_schema (JSON Schema),
   - output_schema (JSON Schema).
+
+**FR-RISK-MCP-1. Жёсткое соответствие схемам**
+
+- Входы MCP-инструментов риска валидируются на уровне адаптера по JSON Schema/Pydantic до доменной логики.
+- Выходные DTO маппятся 1-в-1 на схемы (имена полей, типы, обязательность), как описано в `ARCHITECTURE_LOW_LEVEL.md`.
+- Контрактные тесты фиксируют схемы из `SCENARIOS_PORTFOLIO_RISK.md` и ломаются при любом несовпадении.
 
 ---
 
@@ -263,3 +283,8 @@ MCP должен:
 - Минимум:
   - unit-тесты MCP (валидация аргументов, обработка ошибок, парсинг ISS);
   - smoke-тест агента (A2A end-to-end запрос с заглушками LLM/MCP).
+
+**NFR-10. Контрактные проверки risk-analytics-mcp**
+
+- Авто-тесты валидируют, что ответы `risk-analytics-mcp` соответствуют схемам из `SCENARIOS_PORTFOLIO_RISK.md`.
+- Любое изменение схем сопровождается обновлением `ARCHITECTURE_*` и миграцией тестов.
