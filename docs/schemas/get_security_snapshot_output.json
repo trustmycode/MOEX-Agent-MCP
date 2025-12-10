@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetSecuritySnapshotOutput",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "enum": ["moex-iss"] },
+        "ticker": { "type": "string" },
+        "board": { "type": "string" },
+        "as_of": { "type": "string", "format": "date-time" }
+      },
+      "required": ["source", "ticker", "board", "as_of"],
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "last_price": { "type": "number" },
+        "price_change_abs": { "type": "number" },
+        "price_change_pct": { "type": "number" },
+        "open_price": { "type": "number" },
+        "high_price": { "type": "number" },
+        "low_price": { "type": "number" },
+        "volume": { "type": "number" },
+        "value": { "type": "number" }
+      },
+      "required": ["last_price", "price_change_abs", "price_change_pct"],
+      "additionalProperties": true
+    },
+    "metrics": {
+      "type": ["null", "object"],
+      "properties": {
+        "intraday_volatility_estimate": { "type": "number" }
+      },
+      "required": [],
+      "additionalProperties": true
+    },
+    "error": {
+      "type": ["null", "object"],
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": {}
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "data"],
+  "additionalProperties": false
+}

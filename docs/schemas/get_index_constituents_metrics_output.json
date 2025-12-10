@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetIndexConstituentsMetricsOutput",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "enum": ["moex-iss"] },
+        "index_ticker": { "type": "string" },
+        "as_of_date": { "type": "string", "format": "date" }
+      },
+      "required": ["source", "index_ticker", "as_of_date"],
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": { "type": "string" },
+          "weight_pct": { "type": "number" },
+          "last_price": { "type": "number" },
+          "price_change_pct": { "type": "number" },
+          "sector": { "type": "string" }
+        },
+        "required": ["ticker", "weight_pct"],
+        "additionalProperties": true
+      }
+    },
+    "metrics": {
+      "type": ["null", "object"],
+      "properties": {
+        "top5_weight_pct": { "type": "number" },
+        "num_constituents": { "type": "integer" }
+      },
+      "required": [],
+      "additionalProperties": true
+    },
+    "error": {
+      "type": ["null", "object"],
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": {}
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "data"],
+  "additionalProperties": false
+}

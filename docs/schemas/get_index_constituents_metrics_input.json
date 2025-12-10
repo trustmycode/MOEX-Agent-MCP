@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetIndexConstituentsMetricsInput",
+  "type": "object",
+  "properties": {
+    "index_ticker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Index ticker."
+    },
+    "as_of_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date for which index composition is requested."
+    }
+  },
+  "required": ["index_ticker", "as_of_date"],
+  "additionalProperties": false
+}

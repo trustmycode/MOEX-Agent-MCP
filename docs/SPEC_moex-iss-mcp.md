@@ -15,10 +15,16 @@
 - Транспорт: FastMCP (`streamable-http`)
 - Основной endpoint: `/mcp`
 - Дополнительные endpoints:
-  - `/health` — `{"status":"ok"}`;
-  - `/metrics` — Prometheus.
+- `/health` — `{"status":"ok"}`;
+- `/metrics` — Prometheus (экспонирует `tool_calls_total{tool}`, `tool_errors_total{tool,error_type}`, `mcp_http_latency_seconds{tool}`, `moex_iss_mcp_up`).
 
 Все инструменты описаны через Pydantic-модели в коде и дублируются JSON Schema (ниже).
+
+### 1.1. Нормализация дат и индексов
+
+- Если вход пользователя не содержит периода, MCP (или агент до вызова MCP) заполняет `to_date = today` (UTC) и `from_date = to_date - 365 дней` для всех tools с диапазонами дат.
+- Глубина истории ограничена `MAX_LOOKBACK_DAYS = 730`; при превышении лимита (после применения дефолтов) возвращается ошибка `DATE_RANGE_TOO_LARGE`.
+- `index_ticker` преобразуется в ISS `indexid` через справочник индексов (`IMOEX`, `RTSI` поддержаны из коробки). Результат маппинга кэшируется на 24 часа; при неизвестном индексе возвращается ошибка `UNKNOWN_INDEX`.
 
 ---
 
@@ -164,6 +170,11 @@
 
 _(валидация `to_date >= from_date` реализуется на уровне Pydantic, вне JSON Schema)_
 
+Правила по датам:
+
+- если `from_date`/`to_date` не переданы пользователем, MCP/агент подставляет `to_date = today` (UTC) и `from_date = to_date - 365 дней`;
+- проверяется ограничение `MAX_LOOKBACK_DAYS = 730`; при превышении возвращается нормализованная ошибка `DATE_RANGE_TOO_LARGE`.
+
 #### Output JSON Schema
 
 ```json
@@ -244,7 +255,8 @@ _(валидация `to_date >= from_date` реализуется на уров
   "properties": {
     "index_ticker": {
       "type": "string",
-      "enum": ["IMOEX", "RTSI"],
+      "minLength": 1,
+      "maxLength": 16,
       "description": "Index ticker."
     },
     "as_of_date": {
@@ -257,6 +269,11 @@ _(валидация `to_date >= from_date` реализуется на уров
   "additionalProperties": false
 }
 ```
+
+Поведение:
+
+- `index_ticker` маппится на ISS `indexid` (поддержаны `IMOEX`, `RTSI`) с кэшированием результата на 24 часа;
+- при отсутствии маппинга или ошибке ISS возвращается нормализованная ошибка `UNKNOWN_INDEX` в поле `error`.
 
 #### Output JSON Schema
 

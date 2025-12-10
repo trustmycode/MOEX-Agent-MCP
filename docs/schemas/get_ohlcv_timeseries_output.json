@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetOhlcvTimeseriesOutput",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "enum": ["moex-iss"] },
+        "ticker": { "type": "string" },
+        "board": { "type": "string" },
+        "interval": { "type": "string", "enum": ["1d", "1h"] },
+        "from_date": { "type": "string", "format": "date" },
+        "to_date": { "type": "string", "format": "date" }
+      },
+      "required": ["source", "ticker", "interval", "from_date", "to_date"],
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ts": { "type": "string", "format": "date-time" },
+          "open": { "type": "number" },
+          "high": { "type": "number" },
+          "low": { "type": "number" },
+          "close": { "type": "number" },
+          "volume": { "type": "number" },
+          "value": { "type": "number" }
+        },
+        "required": ["ts", "open", "high", "low", "close"],
+        "additionalProperties": true
+      }
+    },
+    "metrics": {
+      "type": ["null", "object"],
+      "properties": {
+        "total_return_pct": { "type": "number" },
+        "annualized_volatility": { "type": "number" },
+        "avg_daily_volume": { "type": "number" }
+      },
+      "required": [],
+      "additionalProperties": true
+    },
+    "error": {
+      "type": ["null", "object"],
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": {}
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "data"],
+  "additionalProperties": false
+}

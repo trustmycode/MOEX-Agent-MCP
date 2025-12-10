@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetSecuritySnapshotInput",
+  "type": "object",
+  "properties": {
+    "ticker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Security ticker, e.g. 'SBER'."
+    },
+    "board": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "MOEX board, e.g. 'TQBR'.",
+      "default": "TQBR"
+    }
+  },
+  "required": ["ticker"],
+  "additionalProperties": false
+}

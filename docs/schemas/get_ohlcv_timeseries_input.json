@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetOhlcvTimeseriesInput",
+  "type": "object",
+  "properties": {
+    "ticker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Security ticker, e.g. 'SBER'."
+    },
+    "board": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "MOEX board, e.g. 'TQBR'.",
+      "default": "TQBR"
+    },
+    "from_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Start date, inclusive, in ISO format (YYYY-MM-DD)."
+    },
+    "to_date": {
+      "type": "string",
+      "format": "date",
+      "description": "End date, inclusive, in ISO format (YYYY-MM-DD)."
+    },
+    "interval": {
+      "type": "string",
+      "enum": ["1d", "1h"],
+      "description": "Aggregation interval: 1d (daily) or 1h (hourly).",
+      "default": "1d"
+    }
+  },
+  "required": ["ticker", "from_date", "to_date"],
+  "additionalProperties": false
+}

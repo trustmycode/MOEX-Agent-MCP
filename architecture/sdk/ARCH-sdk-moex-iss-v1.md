@@ -83,6 +83,26 @@ moex_iss_sdk/
 - опциональным LRU‑кэшем с TTL для типовых запросов (`ENABLE_CACHE`,
   `CACHE_TTL_SECONDS`), реализуемым в рамках `TASK-2025-075`.
 
+Базовое поведение методов:
+
+- базовый URL по умолчанию `https://iss.moex.com/iss/`, борд для акций — `TQBR`;
+- интервалы OHLCV: `"1d"` → `interval=24`, `"1h"` → `interval=60`;
+- диапазон дат валидируется и ограничен `MAX_LOOKBACK_DAYS=730` (ошибка `DATE_RANGE_TOO_LARGE`);
+- кэш включается по флагу и применяется к snapshot, индексам и дивидендам.
+
+### Кэш и обработка ошибок
+
+- `ENABLE_CACHE=true` включает LRU+TTL (размер `CACHE_MAX_SIZE`, TTL `CACHE_TTL_SECONDS`); ключи кэша строятся из имени операции и нормализованных параметров.
+- Идемпотентные методы (`snapshot`, `index_constituents`, `dividends`, опционально короткие `ohlcv`) используют кэш; при `ENABLE_CACHE=false` запросы идут напрямую в ISS.
+- Исключения SDK → маппинг MCP: `InvalidTickerError→INVALID_TICKER`, `DateRangeTooLargeError→DATE_RANGE_TOO_LARGE`, `TooManyTickersError→TOO_MANY_TICKERS`, `IssTimeoutError→ISS_TIMEOUT`, `IssServerError→ISS_5XX`, `UnknownIssError→UNKNOWN`.
+
+### Конфигурация через переменные окружения
+
+- `MOEX_ISS_BASE_URL`, `MOEX_ISS_DEFAULT_BOARD`, `MOEX_ISS_DEFAULT_INTERVAL`;
+- `MOEX_ISS_RATE_LIMIT_RPS`, `MOEX_ISS_TIMEOUT_SECONDS`;
+- `MOEX_ISS_MAX_LOOKBACK_DAYS`;
+- `ENABLE_CACHE`, `CACHE_TTL_SECONDS`, `CACHE_MAX_SIZE`.
+
 SDK является **единственным** источником правды о низкоуровневом поведении
 MOEX ISS для внутренних сервисов:
 
@@ -119,3 +139,42 @@ MOEX ISS для внутренних сервисов:
 - Возможное использование SDK другими внутренними сервисами и утилитами, не
   связанными напрямую с MCP (например, офлайн‑скриптами подготовки данных для
   демо/тестов).
+
+## Публичный API и контракт
+
+- `get_security_snapshot(ticker: str, board: str = "TQBR") -> SecuritySnapshot`
+- `get_ohlcv_series(ticker: str, board: str, from_date: date, to_date: date, interval: Literal["1d", "1h"]) -> list[OhlcvBar]`
+- `get_index_constituents(index_ticker: str, as_of_date: date) -> list[IndexConstituent]`
+- `get_security_dividends(ticker: str, from_date: date, to_date: date) -> list[DividendRecord]`
+
+Все методы синхронные; ошибки ISS и валидации конвертируются в нормализованные
+исключения SDK (`InvalidTickerError`, `DateRangeTooLargeError`,
+`TooManyTickersError`, `IssTimeoutError`, `IssServerError`, `UnknownIssError`),
+которые на уровне MCP маппятся в `error_type`
+(`INVALID_TICKER`, `DATE_RANGE_TOO_LARGE`, `TOO_MANY_TICKERS`, `ISS_TIMEOUT`,
+`ISS_5XX`, `UNKNOWN`).
+
+### Конфигурация и параметры
+
+- `MOEX_ISS_BASE_URL` — базовый URL ISS (дефолт `https://iss.moex.com/iss/`).
+- `MOEX_ISS_RATE_LIMIT_RPS` — ограничение запросов в секунду (блокирующий rate limiter).
+- `MOEX_ISS_TIMEOUT_SECONDS` — тайм‑аут сетевого запроса.
+- `ENABLE_CACHE` — включает LRU‑кэш на идемпотентных методах.
+- `CACHE_TTL_SECONDS`, `CACHE_MAX_SIZE` — параметры TTL и размера кэша.
+- `MAX_LOOKBACK_DAYS = 730` — лимит глубины истории; при превышении выбрасывается `DateRangeTooLargeError`.
+
+### Кэширование
+
+- Кэш применяется к snapshot, индексным маппингам/конституентам и дивидендам;
+  для OHLCV — только на коротких диапазонах (по умолчанию отключено).
+- Ключи кэша формируются из имени операции и нормализованных аргументов,
+  TTL по умолчанию 30 секунд, размер кэша 256 записей.
+
+### URL и эндпоинты
+
+Файл `endpoints.py` централизует построение путей ISS:
+
+- snapshot: `engines/{engine}/markets/{market}/boards/{board}/securities/{ticker}.json`
+- OHLCV: `.../securities/{ticker}/candles.json?interval=24|60&from=...&till=...&boardid=...`
+- index constituents: `engines/stock/markets/index/securities/{index_ticker}/constituents.json?date=...`
+- dividends: `securities/{ticker}/dividends.json?from=...&till=...`
