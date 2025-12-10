@@ -7,8 +7,8 @@ type: feature
 estimate: 32h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
-children: [TASK-2025-039, TASK-2025-040, TASK-2025-041, TASK-2025-042]
+updated: 2025-12-10
+children: [TASK-2025-039, TASK-2025-040, TASK-2025-041, TASK-2025-042, TASK-2025-049, TASK-2025-051]
 arch_refs: [ARCH-mcp-moex-iss, ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Повышает прикладную ценность решения за счёт портфельного анализа и сценариев «вот мой портфель, оцени риск»."

@@ -7,8 +7,8 @@ type: spike
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
-children: [TASK-2025-043, TASK-2025-044, TASK-2025-045]
+updated: 2025-12-10
+children: [TASK-2025-043, TASK-2025-044, TASK-2025-045, TASK-2025-051]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Фиксирует постановку расширенного риск-анализа (VaR, stress-тесты) и RAG по новостям/аналитике как roadmap после хакатона."
