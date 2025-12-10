@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003]
+children: [TASK-2025-059, TASK-2025-060, TASK-2025-061]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Добавляет структурированное исполнение плана, более точный heuristic re-plan и LLM-assisted re-plan в advanced-режиме с fallback в basic."

@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003]
+children: [TASK-2025-066, TASK-2025-067]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Определяет контракт и стратегию интеграции вынесенного Planner Agent с fallback в basic-планировщик."

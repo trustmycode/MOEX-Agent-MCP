@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003]
+children: [TASK-2025-052, TASK-2025-053, TASK-2025-054]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Фиксирует basic-режим планировщика с жёсткими лимитами и простым re-plan, включая поддержку сценария portfolio_risk."

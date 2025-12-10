@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003, TASK-2025-007, TASK-2025-008]
+children: [TASK-2025-068, TASK-2025-069, TASK-2025-070, TASK-2025-071, TASK-2025-072]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Добавляет cost-aware планирование, feedback-loop, валидатор плана, YAML-DSL для сценариев и стресс-тесты портфеля как roadmap-функции."

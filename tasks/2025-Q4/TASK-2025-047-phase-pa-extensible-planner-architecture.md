@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003]
+children: [TASK-2025-056, TASK-2025-057, TASK-2025-058]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Переводит планировщик на стратегию PlanningStrategy с ToolRegistry и телеметрией, готовя его к advanced-режиму и внешнему Planner Agent."

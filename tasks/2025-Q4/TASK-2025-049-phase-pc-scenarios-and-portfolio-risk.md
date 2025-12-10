@@ -9,6 +9,7 @@ assignee: @unassigned
 created: 2025-12-10
 updated: 2025-12-10
 parents: [TASK-2025-003, TASK-2025-007]
+children: [TASK-2025-062, TASK-2025-063, TASK-2025-064, TASK-2025-065]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Формализует сценарии агента через ScenarioTemplate и обеспечивает контролируемое поведение portfolio_risk для больших портфелей."
