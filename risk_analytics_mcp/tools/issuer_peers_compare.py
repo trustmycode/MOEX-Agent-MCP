@@ -2,8 +2,6 @@
 Инструмент issuer_peers_compare: сравнение эмитента с пирами по ключевым метрикам.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple

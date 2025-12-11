@@ -4,8 +4,6 @@
 Возвращает последнюю цену, изменение, ликвидность и другие базовые метрики.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from typing import Annotated, Optional

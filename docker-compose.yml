@@ -51,3 +51,22 @@ services:
         condition: service_healthy
       risk-analytics-mcp:
         condition: service_healthy
+
+  web:
+    image: moex-web:local
+    platform: linux/amd64
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - PORT=${WEB_PORT:-3000}
+      - HOSTNAME=0.0.0.0
+      - AGENT_SERVICE_URL=${AGENT_SERVICE_URL:-http://agent:8100/a2a}
+      - NODE_ENV=production
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      agent:
+        condition: service_healthy

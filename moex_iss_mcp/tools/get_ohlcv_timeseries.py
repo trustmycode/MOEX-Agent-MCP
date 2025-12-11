@@ -4,8 +4,6 @@
 Возвращает исторические данные о ценах открытия, максимуме, минимуме, закрытии и объёмах.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from datetime import timedelta

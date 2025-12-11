@@ -16,7 +16,7 @@ type Props = {
 
 const severityIcon: Record<
   NonNullable<Alert['severity']>,
-  (props: { className?: string }) => JSX.Element
+  React.ComponentType<{ className?: string }>
 > = {
   info: CircleAlert,
   low: AlertCircle,

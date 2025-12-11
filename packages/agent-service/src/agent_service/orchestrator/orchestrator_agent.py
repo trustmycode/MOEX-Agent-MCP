@@ -52,6 +52,9 @@ class OrchestratorAgent:
         query_parser: Optional[QueryParser] = None,
         session_store: Optional[SessionStateStore] = None,
         session_ttl_seconds: float = 900.0,
+        dynamic_planning_threshold: float = 0.55,
+        planner_timeout_seconds: float = 20.0,
+        max_dynamic_steps: int = 5,
     ) -> None:
         """
         Инициализация оркестратора.
@@ -71,6 +74,9 @@ class OrchestratorAgent:
         self.enable_debug = enable_debug
         self.query_parser = query_parser or QueryParser()
         self.session_store = session_store or SessionStateStore(ttl_seconds=session_ttl_seconds)
+        self.dynamic_planning_threshold = dynamic_planning_threshold
+        self.planner_timeout_seconds = planner_timeout_seconds
+        self.max_dynamic_steps = max_dynamic_steps
 
     async def handle_request(self, a2a_input: A2AInput) -> A2AOutput:
         """
@@ -92,6 +98,10 @@ class OrchestratorAgent:
         """
         start_time = time.perf_counter()
         subagent_traces: list[SubagentTrace] = []
+        plan_source = "static"
+        planner_reasoning: Optional[str] = None
+        raw_planner_response: Optional[str] = None
+        planned_pipeline_steps: list[str] = []
 
         try:
             # Шаг 1: Извлечение запроса
@@ -126,30 +136,7 @@ class OrchestratorAgent:
                 confidence,
             )
 
-            if scenario_type == ScenarioType.UNKNOWN:
-                return A2AOutput.error(
-                    error_message=(
-                        "Не удалось определить тип запроса. "
-                        "Пожалуйста, переформулируйте запрос."
-                    ),
-                    debug=self._build_debug_info(
-                        scenario_type,
-                        confidence,
-                        [],
-                        subagent_traces,
-                        start_time,
-                    ),
-                )
-
-            # Шаг 3: Получение pipeline
-            pipeline = get_pipeline(scenario_type)
-            logger.info(
-                "Using pipeline: %s (%d steps)",
-                pipeline.description,
-                len(pipeline.steps),
-            )
-
-            # Шаг 4: Создание AgentContext
+            # Шаг 3: Создание AgentContext
             context = AgentContext(
                 user_query=user_query,
                 session_id=a2a_input.session_id or "",
@@ -195,6 +182,9 @@ class OrchestratorAgent:
                             [],
                             subagent_traces,
                             start_time,
+                            plan_source=plan_source,
+                            planner_reasoning=planner_reasoning,
+                            raw_planner_response=raw_planner_response,
                         ),
                     )
 
@@ -202,6 +192,41 @@ class OrchestratorAgent:
                 context.add_result("parsed_params", parsed_params)
                 if a2a_input.session_id:
                     self.session_store.set(a2a_input.session_id, parsed_params)
+
+            # Шаг 4: выбор статики или динамического плана
+            pipeline: Optional[ScenarioPipeline] = None
+            need_dynamic = scenario_type == ScenarioType.UNKNOWN or confidence < self.dynamic_planning_threshold
+
+            if need_dynamic:
+                dynamic_plan = await self._plan_with_research_planner(
+                    context=context,
+                    subagent_traces=subagent_traces,
+                )
+                if dynamic_plan:
+                    pipeline = dynamic_plan["pipeline"]
+                    planner_reasoning = dynamic_plan.get("reasoning")
+                    raw_planner_response = dynamic_plan.get("raw_response")
+                    plan_source = "dynamic"
+                    planned_pipeline_steps = pipeline.subagent_names
+                    context.scenario_type = "dynamic_plan"
+
+            if pipeline is None and scenario_type != ScenarioType.UNKNOWN:
+                pipeline = get_pipeline(scenario_type)
+                planned_pipeline_steps = pipeline.subagent_names
+                context.scenario_type = scenario_type.value
+
+            if pipeline is None:
+                pipeline = get_pipeline(ScenarioType.UNKNOWN)
+                plan_source = "fallback"
+                planned_pipeline_steps = pipeline.subagent_names
+                context.scenario_type = ScenarioType.UNKNOWN.value
+
+            logger.info(
+                "Using pipeline (%s): %s (%d steps)",
+                plan_source,
+                pipeline.description,
+                len(pipeline.steps),
+            )
 
             # Шаг 5: Выполнение pipeline
             result = await self._execute_pipeline(
@@ -218,6 +243,10 @@ class OrchestratorAgent:
                 confidence=confidence,
                 subagent_traces=subagent_traces,
                 start_time=start_time,
+                plan_source=plan_source,
+                planner_reasoning=planner_reasoning,
+                raw_planner_response=raw_planner_response,
+                planned_pipeline_steps=planned_pipeline_steps or [t.name for t in subagent_traces],
             )
 
         except Exception as e:
@@ -232,6 +261,141 @@ class OrchestratorAgent:
                     start_time,
                 ),
             )
+
+    async def _plan_with_research_planner(
+        self,
+        context: AgentContext,
+        subagent_traces: list[SubagentTrace],
+    ) -> Optional[dict[str, Any]]:
+        """
+        Попробовать построить динамический план через ResearchPlannerSubagent.
+
+        Returns:
+            dict с pipeline и метаданными или None, если план недоступен.
+        """
+        planner = self.registry.get("research_planner")
+        trace = SubagentTrace(
+            name="research_planner",
+            status="skipped",
+            duration_ms=0.0,
+        )
+        start_time = time.perf_counter()
+
+        if planner is None:
+            trace.error = "Subagent not found"
+            subagent_traces.append(trace)
+            return None
+
+        try:
+            planner_result = await self._execute_with_timeout(
+                subagent=planner,
+                context=context,
+                timeout=self.planner_timeout_seconds,
+            )
+            trace.duration_ms = (time.perf_counter() - start_time) * 1000
+
+            if not planner_result.is_success or not planner_result.data:
+                trace.status = "error"
+                trace.error = planner_result.error_message or "Planner returned no data"
+                subagent_traces.append(trace)
+                return None
+
+            if not isinstance(planner_result.data, dict):
+                trace.status = "error"
+                trace.error = "Planner returned unexpected format"
+                subagent_traces.append(trace)
+                return None
+
+            pipeline = self._build_dynamic_pipeline(planner_result.data, context)
+            if pipeline is None:
+                trace.status = "error"
+                trace.error = "Invalid or empty plan"
+                subagent_traces.append(trace)
+                return None
+
+            trace.status = "success"
+            subagent_traces.append(trace)
+
+            plan_block = planner_result.data.get("plan") or planner_result.data
+            return {
+                "pipeline": pipeline,
+                "reasoning": plan_block.get("reasoning"),
+                "raw_response": planner_result.data.get("raw_llm_response"),
+            }
+
+        except asyncio.TimeoutError:
+            trace.duration_ms = (time.perf_counter() - start_time) * 1000
+            trace.status = "error"
+            trace.error = f"Timeout after {self.planner_timeout_seconds}s"
+            subagent_traces.append(trace)
+            logger.warning("ResearchPlannerSubagent timed out")
+            return None
+        except Exception as exc:  # pragma: no cover - защита от неожиданных ошибок
+            trace.duration_ms = (time.perf_counter() - start_time) * 1000
+            trace.status = "error"
+            trace.error = f"{type(exc).__name__}: {exc}"
+            subagent_traces.append(trace)
+            logger.exception("ResearchPlannerSubagent failed")
+            return None
+
+    def _build_dynamic_pipeline(
+        self,
+        planner_payload: dict[str, Any],
+        context: AgentContext,
+    ) -> Optional[ScenarioPipeline]:
+        """
+        Сконструировать ScenarioPipeline из результата ResearchPlanner.
+        """
+        plan_block = planner_payload.get("plan") or planner_payload
+        raw_steps = plan_block.get("steps") or []
+
+        steps: list[PipelineStep] = []
+        seen: set[str] = set()
+        missing_required: list[str] = []
+
+        for raw in raw_steps:
+            subagent = raw.get("subagent") or raw.get("subagent_name")
+            if not subagent:
+                continue
+
+            subagent = str(subagent).strip()
+            if subagent in seen:
+                continue
+
+            required = bool(raw.get("required", True))
+
+            if subagent not in self.registry:
+                if required:
+                    missing_required.append(subagent)
+                continue
+
+            steps.append(
+                PipelineStep(
+                    subagent_name=subagent,
+                    required=required,
+                    timeout_seconds=self.default_timeout,
+                )
+            )
+            seen.add(subagent)
+
+            if len(steps) >= self.max_dynamic_steps:
+                break
+
+        if missing_required:
+            logger.warning(
+                "Dynamic plan contains unavailable required subagents: %s",
+                missing_required,
+            )
+
+        if not steps:
+            return None
+
+        return ScenarioPipeline(
+            scenario_type=ScenarioType.UNKNOWN,
+            description="Динамический план ResearchPlanner",
+            steps=steps,
+            default_timeout=self.default_timeout,
+        )
 
     async def _execute_pipeline(
         self,
@@ -441,6 +605,10 @@ class OrchestratorAgent:
         confidence: float,
         subagent_traces: list[SubagentTrace],
         start_time: float,
+        plan_source: str = "static",
+        planner_reasoning: Optional[str] = None,
+        raw_planner_response: Optional[str] = None,
+        planned_pipeline_steps: Optional[list[str]] = None,
     ) -> A2AOutput:
         """
         Построить финальный A2A-ответ.
@@ -465,9 +633,12 @@ class OrchestratorAgent:
         debug_info = self._build_debug_info(
             scenario_type,
             confidence,
-            [step.name for step in subagent_traces],
+            planned_pipeline_steps or [step.name for step in subagent_traces],
             subagent_traces,
             start_time,
+            plan_source=plan_source,
+            planner_reasoning=planner_reasoning,
+            raw_planner_response=raw_planner_response,
         )
 
         # Определяем статус ответа
@@ -635,6 +806,9 @@ class OrchestratorAgent:
         pipeline_steps: list[str],
         subagent_traces: list[SubagentTrace],
         start_time: float,
+        plan_source: str = "static",
+        planner_reasoning: Optional[str] = None,
+        raw_planner_response: Optional[str] = None,
     ) -> DebugInfo:
         """
         Построить отладочную информацию.
@@ -657,6 +831,9 @@ class OrchestratorAgent:
             pipeline=pipeline_steps,
             subagent_traces=subagent_traces,
             total_duration_ms=total_duration,
+            plan_source=plan_source,
+            planner_reasoning=planner_reasoning,
+            raw_planner_response=raw_planner_response,
         )
 
     def _get_fallback_text(self) -> str:

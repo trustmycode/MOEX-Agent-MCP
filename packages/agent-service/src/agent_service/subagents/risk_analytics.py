@@ -178,9 +178,28 @@ class RiskAnalyticsSubagent(BaseSubagent):
                 f"{result.error.message if result.error else 'Unknown'}",
             )
 
+        risk_report = result.data or {}
+        structured = risk_report.get("structuredContent") or {}
+        structured_data = structured.get("data") or {}
+        structured_meta = structured.get("metadata") or {}
+        outer_meta = risk_report.get("_meta") or {}
+
+        # Расплющиваем payload MCP в плоскую структуру, понятную dashboard/explainer
+        merged_payload: dict[str, Any] = {}
+        merged_payload.update(structured_data)
+
+        # Добавляем metadata, если есть
+        if structured_meta:
+            merged_payload["metadata"] = structured_meta
+        elif outer_meta:
+            merged_payload["metadata"] = outer_meta
+
+        # Сохраняем сырой ответ для возможного дебага
+        merged_payload["raw_risk_report"] = risk_report
+
         return SubagentResult.success(
             data={
-                "risk_report": result.data,
+                **merged_payload,
                 "scenario": "portfolio_risk_basic",
             },
             next_agent_hint="dashboard",

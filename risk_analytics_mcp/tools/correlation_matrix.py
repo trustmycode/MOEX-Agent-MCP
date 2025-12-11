@@ -4,8 +4,6 @@
 Вычисляет корреляционную матрицу доходностей для списка инструментов.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from typing import List, Optional, Sequence

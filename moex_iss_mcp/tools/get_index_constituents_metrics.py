@@ -4,8 +4,6 @@
 Возвращает список компонентов индекса с их весами, ценами и другими метриками.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from typing import Annotated, Any, Optional

@@ -39,38 +39,57 @@ tools:
 rawEnvs:
   RISK_MCP_PORT:
     isRequired: false
-    description: "Порт MCP сервера риск-аналитики"
+    description: "Порт MCP сервера риск-аналитики (по умолчанию 8010)"
   PORT:
     isRequired: false
-    description: "Общий порт (используется, если RISK_MCP_PORT не задан)"
+    description: "Общий порт, если RISK_MCP_PORT не задан (по умолчанию 8010)"
   RISK_MCP_HOST:
     isRequired: false
-    description: "Хост MCP сервера риск-аналитики"
+    description: "Хост MCP сервера риск-аналитики (по умолчанию 0.0.0.0)"
   HOST:
     isRequired: false
-    description: "Общий хост (используется, если RISK_MCP_HOST не задан)"
+    description: "Общий хост, если RISK_MCP_HOST не задан (по умолчанию 0.0.0.0)"
   RISK_MAX_PORTFOLIO_TICKERS:
     isRequired: false
-    description: "Максимальное количество тикеров в портфеле"
+    description: "Лимит числа тикеров в портфеле (например 50)"
   RISK_MAX_CORRELATION_TICKERS:
     isRequired: false
-    description: "Максимальное количество тикеров для корреляционной матрицы"
+    description: "Лимит числа тикеров для корреляционной матрицы (например 20)"
   RISK_MAX_LOOKBACK_DAYS:
     isRequired: false
-    description: "Максимальный период истории в днях"
+    description: "Максимальный период истории в днях (например 365)"
+  MOEX_ISS_MAX_LOOKBACK_DAYS:
+    isRequired: false
+    description: "Общий лимит истории, если RISK_MAX_LOOKBACK_DAYS не задан"
   RISK_ENABLE_MONITORING:
     isRequired: false
-    description: "Включить мониторинг (Prometheus метрики)"
+    description: "Включить мониторинг Prometheus (по умолчанию false)"
+  ENABLE_MONITORING:
+    isRequired: false
+    description: "Общий флаг мониторинга, если RISK_ENABLE_MONITORING не задан"
   RISK_OTEL_ENDPOINT:
     isRequired: false
     description: "OpenTelemetry endpoint для экспорта трейсов"
+  OTEL_ENDPOINT:
+    isRequired: false
+    description: "Общий OpenTelemetry endpoint, если RISK_OTEL_ENDPOINT не задан"
   RISK_OTEL_SERVICE_NAME:
     isRequired: false
-    description: "Имя сервиса для OpenTelemetry"
+    description: "Имя сервиса для OpenTelemetry (по умолчанию risk-analytics-mcp)"
+  OTEL_SERVICE_NAME:
+    isRequired: false
+    description: "Общее имя сервиса, если RISK_OTEL_SERVICE_NAME не задано"
+  MOEX_ISS_MCP_URL:
+    isRequired: true
+    description: "Базовый URL MCP moex-iss-mcp (например http://moex-iss-mcp:8000)"
 
-secretEnvs: {}
+secretEnvs:
+  LLM_API_KEY:
+    isRequired: false
+    description: "Ключ доступа к LLM (если сервер напрямую вызывает FM/LLM)"
 
 image_uri: ${IMAGE_URI}
+cmd: "python -m risk_analytics_mcp.main"
 license_url: "https://example.com/license"
 tags: ["risk", "analytics", "portfolio", "correlation", "moex", "peers", "fundamentals", "valuation"]
 category: "Risk Analytics"

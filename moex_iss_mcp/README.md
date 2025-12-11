@@ -34,6 +34,22 @@ MCP сервер для предоставления данных Московс
 - `OTEL_ENDPOINT` - OpenTelemetry endpoint для экспорта трейсов (опционально)
 - `OTEL_SERVICE_NAME` - Имя сервиса для OpenTelemetry (опционально)
 
+## Deploy to Evolution
+
+- **rawEnvs**:  
+  - `PORT` — например `8000`  
+  - `HOST` — например `0.0.0.0`  
+  - `MOEX_ISS_BASE_URL` — например `https://iss.moex.com/iss/`  
+  - `MOEX_ISS_RATE_LIMIT_RPS` — например `3`  
+  - `MOEX_ISS_TIMEOUT_SECONDS` — например `10`  
+  - `ENABLE_MONITORING` — `false`/`true`  
+  - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME` — при необходимости трейсов  
+  - `LOG_LEVEL` — например `INFO`
+- **secretEnvs**:  
+  - `MOEX_API_KEY` — если используется платный доступ ISS.
+- **Порты**: HTTP `8000` (экспонируется `EXPOSE 8000` в Dockerfile).
+- **Команда запуска**: `python -m moex_iss_mcp.main` (совпадает с Dockerfile).
+
 ## Локальный запуск
 
 1. Установите зависимости:

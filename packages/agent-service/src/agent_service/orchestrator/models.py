@@ -179,6 +179,9 @@ class DebugInfo(BaseModel):
         total_duration_ms: Общее время выполнения.
         rag_sources: Источники из RAG (если использовался).
         raw_llm_response: Сырой ответ LLM (опционально).
+        plan_source: Источник плана (static/dynamic/fallback).
+        planner_reasoning: Краткое объяснение от планировщика.
+        raw_planner_response: Сырой ответ планировщика.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -218,6 +221,21 @@ class DebugInfo(BaseModel):
     raw_llm_response: Optional[str] = Field(
         default=None,
         description="Сырой ответ LLM (для отладки)",
+    )
+
+    plan_source: Optional[Literal["static", "dynamic", "fallback"]] = Field(
+        default=None,
+        description="Источник плана: статический pipeline или динамический LLM",
+    )
+
+    planner_reasoning: Optional[str] = Field(
+        default=None,
+        description="Краткое объяснение выбора шагов от ResearchPlanner",
+    )
+
+    raw_planner_response: Optional[str] = Field(
+        default=None,
+        description="Сырой ответ ResearchPlannerSubagent",
     )
 
 

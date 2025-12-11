@@ -35,6 +35,22 @@ MCP сервер для расчёта метрик риска портфеле�
 - `RISK_OTEL_ENDPOINT` или `OTEL_ENDPOINT` - OpenTelemetry endpoint (опционально)
 - `RISK_OTEL_SERVICE_NAME` или `OTEL_SERVICE_NAME` - Имя сервиса для OpenTelemetry (по умолчанию: risk-analytics-mcp)
 
+## Deploy to Evolution
+
+- **rawEnvs**:  
+  - `RISK_MCP_PORT` / `PORT` — например `8010`  
+  - `RISK_MCP_HOST` / `HOST` — например `0.0.0.0`  
+  - `RISK_MAX_PORTFOLIO_TICKERS` — например `50`  
+  - `RISK_MAX_CORRELATION_TICKERS` — например `20`  
+  - `RISK_MAX_LOOKBACK_DAYS` или `MOEX_ISS_MAX_LOOKBACK_DAYS` — например `365`  
+  - `RISK_ENABLE_MONITORING` / `ENABLE_MONITORING` — `false`/`true`  
+  - `RISK_OTEL_ENDPOINT` / `OTEL_ENDPOINT`, `RISK_OTEL_SERVICE_NAME` / `OTEL_SERVICE_NAME` — при необходимости трейсов  
+  - `MOEX_ISS_MCP_URL` — например `http://moex-iss-mcp:8000`
+- **secretEnvs**:  
+  - `LLM_API_KEY` — если MCP напрямую обращается к LLM/FMs.
+- **Порты**: HTTP `8010` (экспонируется `EXPOSE 8010` в Dockerfile).
+- **Команда запуска**: `python -m risk_analytics_mcp.main`.
+
 ## Локальный запуск
 
 1. Установите зависимости:

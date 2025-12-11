@@ -30,32 +30,39 @@ tools:
 rawEnvs:
   PORT:
     isRequired: false
-    description: "Порт MCP сервера"
+    description: "Порт MCP сервера (по умолчанию 8000)"
   HOST:
     isRequired: false
-    description: "Хост MCP сервера"
+    description: "Хост MCP сервера (по умолчанию 0.0.0.0)"
   MOEX_ISS_BASE_URL:
-    isRequired: false
-    description: "Базовый URL MOEX ISS API"
+    isRequired: true
+    description: "Базовый URL MOEX ISS API (например https://iss.moex.com/iss/)"
   MOEX_ISS_RATE_LIMIT_RPS:
     isRequired: false
-    description: "Лимит запросов к MOEX ISS (запросов в секунду)"
+    description: "Лимит запросов к MOEX ISS (запросов в секунду, по умолчанию 3)"
   MOEX_ISS_TIMEOUT_SECONDS:
     isRequired: false
-    description: "Таймаут запросов к MOEX ISS (секунды)"
+    description: "Таймаут запросов к MOEX ISS (секунды, по умолчанию 10)"
   ENABLE_MONITORING:
     isRequired: false
-    description: "Включить мониторинг (Prometheus метрики)"
+    description: "Включить мониторинг Prometheus (по умолчанию false)"
   OTEL_ENDPOINT:
     isRequired: false
     description: "OpenTelemetry endpoint для экспорта трейсов"
   OTEL_SERVICE_NAME:
     isRequired: false
     description: "Имя сервиса для OpenTelemetry"
+  LOG_LEVEL:
+    isRequired: false
+    description: "Уровень логирования (например INFO, DEBUG)"
 
-secretEnvs: {}
+secretEnvs:
+  MOEX_API_KEY:
+    isRequired: false
+    description: "Ключ MOEX ISS, если используется платный доступ"
 
 image_uri: ${IMAGE_URI}
+cmd: "python -m moex_iss_mcp.main"
 license_url: "https://example.com/license"
 tags: ["moex", "iss", "market-data", "russia"]
 category: "Market Data"

@@ -137,6 +137,44 @@ class MockKnowledgeSubagent(BaseSubagent):
         return SubagentResult.success(data={"snippets": ["VaR — это..."]})
 
 
+class MockResearchPlannerSubagent(BaseSubagent):
+    """Мок для ResearchPlannerSubagent."""
+
+    def __init__(self, steps: list[dict[str, object]], should_fail: bool = False):
+        super().__init__(
+            name="research_planner",
+            description="Mock research planner",
+            capabilities=["plan_scenario"],
+        )
+        self.steps = steps
+        self.should_fail = should_fail
+
+    async def execute(self, context: AgentContext) -> SubagentResult:
+        if self.should_fail:
+            return SubagentResult.create_error("Planner failed")
+
+        return SubagentResult.success(
+            data={
+                "plan": {
+                    "reasoning": "dynamic plan",
+                    "steps": self.steps,
+                },
+                "raw_llm_response": "{}",
+            }
+        )
+
+
+class UnknownClassifier(IntentClassifier):
+    """Классификатор, всегда возвращающий UNKNOWN с низкой уверенностью."""
+
+    def classify_with_confidence(
+        self,
+        query: str,
+        role: Optional[str] = None,
+    ) -> tuple[ScenarioType, float]:
+        return ScenarioType.UNKNOWN, 0.2
+
+
 class SlowSubagent(BaseSubagent):
     """Сабагент с задержкой для тестирования таймаутов."""
 
@@ -247,8 +285,10 @@ class TestHandleRequestBasic:
         
         output = await orchestrator.handle_request(input_data)
         
-        assert output.status == "error"
-        assert "переформулируйте" in output.text.lower() or "определить" in output.text.lower()
+        assert output.status in ("error", "partial", "success")
+        assert output.debug is not None
+        assert output.debug.plan_source in ("fallback", "dynamic", "static")
+        assert len(output.debug.subagent_traces) > 0
 
     async def test_portfolio_without_positions_returns_hint(self, orchestrator: OrchestratorAgent):
         """Портфельный сценарий без позиций возвращает понятную подсказку."""
@@ -511,6 +551,78 @@ class TestSubagentRegistration:
         assert len(subagents) == 5
         assert "market_data" in subagents
         assert "explainer" in subagents
+
+
+class TestDynamicPlanning:
+    """Тесты динамического планирования через ResearchPlanner."""
+
+    @pytest.mark.anyio
+    async def test_dynamic_plan_used_when_unknown(
+        self,
+    ):
+        """Если intent UNKNOWN, используется ResearchPlanner и устанавливается план dynamic."""
+        registry = SubagentRegistry()
+        registry.register(MockMarketDataSubagent())
+        registry.register(MockExplainerSubagent())
+        registry.register(
+            MockResearchPlannerSubagent(
+                steps=[
+                    {"subagent": "market_data", "reason": "получить цены"},
+                    {"subagent": "explainer", "reason": "сформировать ответ"},
+                ]
+            )
+        )
+
+        orchestrator = OrchestratorAgent(
+            registry=registry,
+            classifier=UnknownClassifier(),
+            enable_debug=True,
+        )
+
+        input_data = A2AInput(
+            messages=[A2AMessage(role="user", content="Проанализируй влияние ставки")],
+            session_id="dynamic-session",
+        )
+
+        output = await orchestrator.handle_request(input_data)
+
+        assert output.status in ("success", "partial")
+        assert output.debug is not None
+        assert output.debug.plan_source == "dynamic"
+        trace_names = [t.name for t in output.debug.subagent_traces]
+        assert "research_planner" in trace_names
+        assert "market_data" in trace_names
+        assert "explainer" in trace_names
+
+    @pytest.mark.anyio
+    async def test_fallback_to_unknown_pipeline_when_planner_fails(self):
+        """При ошибке планировщика используется fallback UNKNOWN pipeline."""
+        registry = SubagentRegistry()
+        registry.register(MockExplainerSubagent())
+        registry.register(
+            MockResearchPlannerSubagent(
+                steps=[],
+                should_fail=True,
+            )
+        )
+
+        orchestrator = OrchestratorAgent(
+            registry=registry,
+            classifier=UnknownClassifier(),
+            enable_debug=True,
+        )
+
+        input_data = A2AInput(
+            messages=[A2AMessage(role="user", content="Сделай что-нибудь необычное")],
+            session_id="fallback-session",
+        )
+
+        output = await orchestrator.handle_request(input_data)
+
+        assert output.status in ("success", "partial", "error")
+        assert output.debug is not None
+        assert output.debug.plan_source == "fallback"
+        assert "explainer" in [t.name for t in output.debug.subagent_traces]
 
 
 class TestA2AModels:

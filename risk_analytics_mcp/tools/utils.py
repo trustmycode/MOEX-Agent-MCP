@@ -5,8 +5,6 @@
 и вспомогательные функции для валидации и обработки ошибок.
 """
 
-from __future__ import annotations
-
 import os
 from typing import Any, Dict, List, Optional
 

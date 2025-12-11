@@ -17,11 +17,13 @@ import os
 from fastapi import FastAPI, HTTPException
 
 from agent_service.core import SubagentRegistry
+from agent_service.llm import build_evolution_llm_client_from_env
 from agent_service.orchestrator.models import A2AInput
 from agent_service.orchestrator.orchestrator_agent import OrchestratorAgent
 from agent_service.subagents.dashboard import DashboardSubagent
 from agent_service.subagents.explainer import ExplainerSubagent
 from agent_service.subagents.market_data import MarketDataSubagent
+from agent_service.subagents.research_planner import ResearchPlannerSubagent
 from agent_service.subagents.risk_analytics import RiskAnalyticsSubagent
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -35,10 +37,18 @@ logger = logging.getLogger(__name__)
 def _build_registry() -> SubagentRegistry:
     """Инициализировать реестр сабагентов с дефолтными зависимостями."""
     registry = SubagentRegistry()
+    llm_client = build_evolution_llm_client_from_env()
+
+    if llm_client:
+        logger.info("ExplainerSubagent: EvolutionLLMClient включён")
+    else:
+        logger.info("ExplainerSubagent: LLM_API_KEY не задан, используется MockLLMClient")
+
+    registry.register(ResearchPlannerSubagent(llm_client=llm_client))
     registry.register(MarketDataSubagent())
     registry.register(RiskAnalyticsSubagent())
     registry.register(DashboardSubagent())
-    registry.register(ExplainerSubagent())
+    registry.register(ExplainerSubagent(llm_client=llm_client))
     return registry
 
 

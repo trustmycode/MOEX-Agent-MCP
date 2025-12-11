@@ -4,8 +4,6 @@
 Вычисляет метрики риска, доходности, концентрации и стресс-сценарии для портфеля.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from typing import Any, Dict, List, Mapping, Optional, Sequence
