@@ -8,6 +8,7 @@ from moex_iss_sdk.models import OhlcvBar
 from risk_analytics_mcp.config import RiskMcpConfig
 from risk_analytics_mcp.server import RiskMcpServer
 from risk_analytics_mcp.tools import compute_portfolio_risk_basic_core
+from risk_analytics_mcp.tools import compute_correlation_matrix_core
 
 
 def test_risk_health_and_metrics_routes():
@@ -477,6 +478,30 @@ def test_compute_portfolio_risk_basic_live_iss():
     }
     result = compute_portfolio_risk_basic_core(payload, server.iss_client, max_tickers=cfg.max_portfolio_tickers, max_lookback_days=cfg.max_lookback_days)
     assert result.error is None
+
+
+@pytest.mark.skipif(not os.getenv("ENABLE_RISK_CORR_ISS_SMOKE"), reason="ENABLE_RISK_CORR_ISS_SMOKE not set")
+def test_compute_correlation_matrix_live_iss():
+    """
+    E2E‑smoke: расчёт матрицы корреляций на живых данных ISS.
+    """
+    cfg = RiskMcpConfig(max_correlation_tickers=3, max_lookback_days=90)
+    server = RiskMcpServer(cfg)
+    payload = {
+        "tickers": ["SBER", "GAZP"],
+        "from_date": "2024-09-01",
+        "to_date": "2024-12-01",
+    }
+    result = compute_correlation_matrix_core(
+        payload,
+        server.iss_client,
+        max_tickers=cfg.max_correlation_tickers,
+        max_lookback_days=cfg.max_lookback_days,
+    )
+    assert result.error is None
+    assert result.tickers == ["SBER", "GAZP"]
+    assert len(result.matrix) == 2
+    assert all(len(row) == 2 for row in result.matrix)
 
 
 def test_metrics_increment_on_http_call(monkeypatch):

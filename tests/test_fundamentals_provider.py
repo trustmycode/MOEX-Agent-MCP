@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 
 import pytest
@@ -135,3 +136,109 @@ def test_moex_iss_fundamentals_provider_builds_basic_metrics_from_snapshots():
     assert fundamentals.market_cap == pytest.approx(fundamentals.price * fundamentals.shares_outstanding)
     # Дивидендная доходность должна быть положительной и конечной при наличии дивидендов.
     assert fundamentals.dividend_yield_pct is None or fundamentals.dividend_yield_pct >= 0.0
+
+
+class CountingIssClient(IssClient):
+    """
+    Упрощённый клиент, считающий обращения к методам для проверки кэша.
+    """
+
+    def __init__(self) -> None:
+        settings = IssClientSettings.from_env()
+        settings.rate_limit_rps = 0
+        settings.enable_cache = False
+        super().__init__(settings, cache=None)
+        self.calls = {"snapshot": 0, "info": 0, "dividends": 0}
+
+    def get_security_snapshot(self, ticker: str, board: str | None = None) -> SecuritySnapshot:  # type: ignore[override]  # noqa: E501
+        self.calls["snapshot"] += 1
+        return SecuritySnapshot(
+            ticker=ticker,
+            board=board or "TQBR",
+            as_of=datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc),
+            last_price=100.0,
+            price_change_abs=0.0,
+            price_change_pct=0.0,
+            open_price=None,
+            high_price=None,
+            low_price=None,
+            volume=None,
+            value=None,
+            raw=None,
+        )
+
+    def get_security_info(self, ticker: str) -> SecurityInfo:  # type: ignore[override]
+        self.calls["info"] += 1
+        return SecurityInfo(
+            ticker=ticker,
+            isin="TESTISIN",
+            issue_size=1_000_000.0,
+            face_value=1.0,
+            face_unit="RUB",
+            short_name="TEST",
+            full_name="TEST FULL",
+        )
+
+    def get_security_dividends(  # type: ignore[override]
+        self,
+        ticker: str,
+        from_date,
+        to_date,
+    ) -> list[DividendRecord]:
+        self.calls["dividends"] += 1
+        # по умолчанию без дивидендов
+        return []
+
+
+def test_fundamentals_provider_uses_cache_for_repeat_calls():
+    client = CountingIssClient()
+    provider = MoexIssFundamentalsProvider(client)
+
+    fundamentals1 = provider.get_issuer_fundamentals("SBER")
+    fundamentals2 = provider.get_issuer_fundamentals("SBER")
+
+    assert fundamentals1 is fundamentals2
+    # Каждый метод клиента должен быть вызван ровно один раз.
+    assert client.calls == {"snapshot": 1, "info": 1, "dividends": 1}
+
+
+def test_dividend_yield_is_none_when_no_dividends():
+    client = CountingIssClient()
+    provider = MoexIssFundamentalsProvider(client)
+
+    fundamentals = provider.get_issuer_fundamentals("SBER")
+    assert fundamentals.dividend_yield_pct is None
+
+
+def test_dividend_yield_is_none_when_price_not_positive():
+    class ZeroPriceClient(CountingIssClient):
+        def get_security_snapshot(self, ticker: str, board: str | None = None) -> SecuritySnapshot:  # type: ignore[override]  # noqa: E501
+            snap = super().get_security_snapshot(ticker, board)
+            snap.last_price = 0.0
+            return snap
+
+    client = ZeroPriceClient()
+    provider = MoexIssFundamentalsProvider(client)
+
+    fundamentals = provider.get_issuer_fundamentals("SBER")
+    assert fundamentals.price == 0.0
+    assert fundamentals.dividend_yield_pct is None
+
+
+@pytest.mark.skipif(not os.getenv("ENABLE_FUNDAMENTALS_ISS_SMOKE"), reason="ENABLE_FUNDAMENTALS_ISS_SMOKE not set")
+def test_moex_iss_fundamentals_provider_live_sber():
+    """
+    E2E‑smoke: реальный вызов MOEX ISS для фундаментальных данных по SBER.
+
+    Покрывает связку IssClient → MoexIssFundamentalsProvider без snapshot‑моков.
+    """
+    settings = IssClientSettings.from_env()
+    client = IssClient(settings)
+    provider = MoexIssFundamentalsProvider(client)
+
+    fundamentals = provider.get_issuer_fundamentals("SBER")
+
+    assert fundamentals.ticker == "SBER"
+    assert fundamentals.price is not None and fundamentals.price > 0
+    assert fundamentals.shares_outstanding is not None and fundamentals.shares_outstanding > 0
+    assert fundamentals.market_cap is not None and fundamentals.market_cap > 0
