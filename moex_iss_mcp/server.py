@@ -71,6 +71,7 @@ class McpServer:
             host=self.config.host,
             port=self.config.port,
             stateless_http=True,
+            json_response=True,
         )
 
     @property

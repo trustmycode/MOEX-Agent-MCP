@@ -1,11 +1,11 @@
 ---
 id: TASK-2025-121
 title: "MarketData & RiskAnalytics Subagents"
-status: planned
+status: done
 priority: critical
 type: feature
 estimate: 16h
-assignee: @unassigned
+assignee: @AI-Cursor
 created: 2025-12-12
 updated: 2025-12-12
 parents: [TASK-2025-120]
@@ -15,6 +15,7 @@ risk: medium
 benefit: "Создаёт рабочие сабагенты для вызова MCP-инструментов — основной механизм получения данных и расчётов."
 audit_log:
   - {date: 2025-12-12, user: "@AI-Codex", action: "created as critical P0 task for multi-agent MVP"}
+  - {date: 2025-12-12, user: "@AI-Cursor", action: "implemented MarketDataSubagent and RiskAnalyticsSubagent with MCP client, 62 tests passing"}
 ---
 
 ## Описание
@@ -42,35 +43,35 @@ audit_log:
 
 ### MarketDataSubagent
 
-- [ ] Наследуется от `BaseSubagent` (TASK-120)
-- [ ] Реализует `execute(context)` с логикой:
+- [x] Наследуется от `BaseSubagent` (TASK-120)
+- [x] Реализует `execute(context)` с логикой:
   - анализ `context.user_query` или `context.scenario_type`
   - выбор нужных MCP-инструментов
   - вызов `moex-iss-mcp` через HTTP/MCP-клиент
   - обработка ошибок (INVALID_TICKER, RATE_LIMIT, etc.)
   - возврат `SubagentResult` с данными
-- [ ] Встроенные лимиты в промпт/логику:
+- [x] Встроенные лимиты в промпт/логику:
   - не более 5-10 тикеров за один вызов
   - период данных ≤ 365 дней
   - обработка `TOO_MANY_TICKERS` с выбором top-N по весу
-- [ ] Тесты на основные сценарии (snapshot, timeseries, fundamentals)
+- [x] Тесты на основные сценарии (snapshot, timeseries, fundamentals)
 
 ### RiskAnalyticsSubagent
 
-- [ ] Наследуется от `BaseSubagent` (TASK-120)
-- [ ] Реализует `execute(context)` для сценариев:
+- [x] Наследуется от `BaseSubagent` (TASK-120)
+- [x] Реализует `execute(context)` для сценариев:
   - `portfolio_risk` → вызов `compute_portfolio_risk_basic`
   - `portfolio_correlation` → вызов `compute_correlation_matrix`
   - `rebalance` → вызов `suggest_rebalance`
   - `cfo_report` → вызов `cfo_liquidity_report`
   - `issuer_compare` → вызов `issuer_peers_compare`
-- [ ] Обработка ошибок MCP и возврат понятных сообщений
-- [ ] Тесты на основные сценарии
+- [x] Обработка ошибок MCP и возврат понятных сообщений
+- [x] Тесты на основные сценарии
 
 ### Общее
 
-- [ ] Оба сабагента зарегистрированы в `SubagentRegistry`
-- [ ] Конфигурация URL MCP-серверов через ENV (`MOEX_ISS_MCP_URL`, `RISK_ANALYTICS_MCP_URL`)
+- [x] Оба сабагента зарегистрированы в `SubagentRegistry`
+- [x] Конфигурация URL MCP-серверов через ENV (`MOEX_ISS_MCP_URL`, `RISK_ANALYTICS_MCP_URL`)
 
 ## Определение готовности
 

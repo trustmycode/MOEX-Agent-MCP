@@ -4,7 +4,7 @@
 
 import json
 
-from moex_iss_mcp.error_mapper import ErrorMapper
+from moex_iss_sdk.error_mapper import ErrorMapper
 from moex_iss_sdk.exceptions import IssServerError
 
 

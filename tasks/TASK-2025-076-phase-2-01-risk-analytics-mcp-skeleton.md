@@ -7,14 +7,15 @@ type: feature
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-10
-updated: 2025-12-10
+updated: 2025-12-12
 parents: [TASK-2025-007]
-children: [TASK-2025-089, TASK-2025-090, TASK-2025-091]
+children: [TASK-2025-089, TASK-2025-090, TASK-2025-091, TASK-2025-141]
 arch_refs: [ARCH-mcp-risk-analytics, ARCH-sdk-moex-iss]
 risk: medium
 benefit: "Создаёт отдельный MCP-сервис для портфельного и корреляционного анализа поверх moex_iss_sdk."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Architect", action: "added child task TASK-2025-141 for Evolution deployment preparation"}
 ---
 
 ## Описание

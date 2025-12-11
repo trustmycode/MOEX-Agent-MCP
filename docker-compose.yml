@@ -1,0 +1,53 @@
+services:
+  moex-iss-mcp:
+    image: moex-iss-mcp:local
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: moex_iss_mcp/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-8000}
+      - HOST=0.0.0.0
+    ports:
+      - "${PORT:-8000}:8000"
+
+  risk-analytics-mcp:
+    image: risk-analytics-mcp:local
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: risk_analytics_mcp/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RISK_MCP_PORT=${RISK_MCP_PORT:-8010}
+      - HOST=0.0.0.0
+    ports:
+      - "${RISK_MCP_PORT:-8010}:8010"
+    depends_on:
+      moex-iss-mcp:
+        condition: service_healthy
+
+  agent:
+    image: moex-market-analyst-agent:local
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: packages/agent-service/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - AGENT_PORT=${AGENT_PORT:-8100}
+      - MOEX_ISS_MCP_URL=${MOEX_ISS_MCP_URL:-http://moex-iss-mcp:8000}
+      - RISK_ANALYTICS_MCP_URL=${RISK_ANALYTICS_MCP_URL:-http://risk-analytics-mcp:8010}
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
+      - AGENT_ENABLE_DEBUG=${AGENT_ENABLE_DEBUG:-true}
+    ports:
+      - "${AGENT_PORT:-8100}:8100"
+    depends_on:
+      moex-iss-mcp:
+        condition: service_healthy
+      risk-analytics-mcp:
+        condition: service_healthy

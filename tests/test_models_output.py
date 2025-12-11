@@ -4,7 +4,7 @@
 
 from datetime import datetime, timezone
 
-from moex_iss_mcp.error_mapper import ToolErrorModel
+from moex_iss_sdk.error_mapper import ToolErrorModel
 from moex_iss_mcp.models import (
     GetIndexConstituentsMetricsOutput,
     GetOhlcvTimeseriesOutput,

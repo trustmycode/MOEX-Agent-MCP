@@ -13,8 +13,8 @@ from opentelemetry import trace
 from pydantic import Field
 from pydantic.fields import FieldInfo
 
-from moex_iss_mcp.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk import IssClient
+from moex_iss_sdk.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk.exceptions import InvalidTickerError
 from moex_iss_sdk.utils import utc_now
 

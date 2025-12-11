@@ -147,6 +147,8 @@ class ExplainerSubagent(BaseSubagent):
         # Генерация отчёта (в проде — через LLM)
         tickers = list(market_data.keys()) if market_data else []
         vol = risk_metrics.get("portfolio_volatility", 0) if risk_metrics else 0
+        var_95 = risk_metrics.get("var_95", 0) if risk_metrics else 0
+        sharpe_ratio = risk_metrics.get("sharpe_ratio", 0) if risk_metrics else 0
         
         report = f"""
 ## Анализ портфеля
@@ -155,8 +157,8 @@ class ExplainerSubagent(BaseSubagent):
 
 ### Ключевые метрики риска
 - Волатильность портфеля: {vol:.1%}
-- VaR (95%): {risk_metrics.get('var_95', 0):.1%}
-- Sharpe Ratio: {risk_metrics.get('sharpe_ratio', 0):.2f}
+- VaR (95%): {var_95:.1%}
+- Sharpe Ratio: {sharpe_ratio:.2f}
 
 ### Рекомендации для {context.user_role or 'аналитика'}
 Портфель демонстрирует {"умеренный" if vol < 0.2 else "повышенный"} уровень риска.

@@ -1,21 +1,23 @@
 ---
 id: TASK-2025-123
 title: "Explainer & Dashboard Subagents"
-status: planned
+status: done
 priority: critical
 type: feature
 estimate: 16h
-assignee: @unassigned
+assignee: @AI-Codex
 created: 2025-12-12
 updated: 2025-12-12
 parents: [TASK-2025-120]
-children: []
+children: [TASK-2025-140]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Создаёт репортёров — сабагенты для генерации текстового отчёта и JSON-UI дашборда."
 supersedes: [TASK-2025-110]
 audit_log:
   - {date: 2025-12-12, user: "@AI-Codex", action: "created as critical P0 task for multi-agent MVP (absorbs TASK-110)"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "implemented ExplainerSubagent, DashboardSubagent, RiskDashboardSpec with 60 new tests (260 total)"}
+  - {date: 2025-12-12, user: "@AI-Architect", action: "added child task TASK-2025-140 for Evolution LLM integration"}
 ---
 
 ## Описание
@@ -46,32 +48,32 @@ audit_log:
 
 ### ExplainerSubagent
 
-- [ ] Наследуется от `BaseSubagent` (TASK-120)
-- [ ] Принимает `AgentContext` с заполненными `intermediate_results` от воркеров
-- [ ] Генерирует текст через LLM (GigaChat / GPT) по промпту:
+- [x] Наследуется от `BaseSubagent` (TASK-120)
+- [x] Принимает `AgentContext` с заполненными `intermediate_results` от воркеров
+- [x] Генерирует текст через LLM (GigaChat / GPT) по промпту:
   - Описание метрик портфеля (доходность, волатильность, max drawdown)
   - Интерпретация Var_light и стресс-тестов
   - Рекомендации (если есть suggest_rebalance)
   - Адаптация под роль: CFO — больше про бизнес, риск-менеджер — больше про метрики
-- [ ] Промпт явно запрещает «выдумывать числа» — только данные из context
-- [ ] Поддержка русского языка (приоритет) и английского
-- [ ] Возвращает `SubagentResult` с `data.text: str`
+- [x] Промпт явно запрещает «выдумывать числа» — только данные из context
+- [x] Поддержка русского языка (приоритет) и английского
+- [x] Возвращает `SubagentResult` с `data.text: str`
 
 ### DashboardSubagent
 
-- [ ] Наследуется от `BaseSubagent` (TASK-120)
-- [ ] Маппит данные из `context.intermediate_results` в `RiskDashboardSpec`:
+- [x] Наследуется от `BaseSubagent` (TASK-120)
+- [x] Маппит данные из `context.intermediate_results` в `RiskDashboardSpec`:
   - `metric_cards[]` — ключевые метрики (return, volatility, var_light, max_drawdown)
   - `tables[]` — позиции портфеля, стресс-сценарии
   - `alerts[]` — превышение концентраций, высокий VaR
-- [ ] Формат `RiskDashboardSpec` соответствует `docs/SPEC_risk_dashboard_agi_ui.md`
-- [ ] **Детерминированная логика** — никакого LLM, только код
-- [ ] Возвращает `SubagentResult` с `data.dashboard: RiskDashboardSpec`
+- [x] Формат `RiskDashboardSpec` соответствует `docs/SPEC_risk_dashboard_agi_ui.md`
+- [x] **Детерминированная логика** — никакого LLM, только код
+- [x] Возвращает `SubagentResult` с `data.dashboard: RiskDashboardSpec`
 
 ### Общее
 
-- [ ] Оба сабагента зарегистрированы в `SubagentRegistry`
-- [ ] Тесты на генерацию текста (mock LLM) и dashboard JSON
+- [x] Оба сабагента зарегистрированы в `SubagentRegistry`
+- [x] Тесты на генерацию текста (mock LLM) и dashboard JSON
 
 ## Определение готовности
 

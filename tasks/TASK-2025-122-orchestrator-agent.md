@@ -1,11 +1,11 @@
 ---
 id: TASK-2025-122
 title: "Orchestrator Agent (Router)"
-status: planned
+status: done
 priority: critical
 type: feature
 estimate: 20h
-assignee: @unassigned
+assignee: @AI-Codex
 created: 2025-12-12
 updated: 2025-12-12
 parents: [TASK-2025-120]
@@ -16,6 +16,7 @@ benefit: "Создаёт центральный компонент мульти�
 supersedes: [TASK-2025-104]
 audit_log:
   - {date: 2025-12-12, user: "@AI-Codex", action: "created as critical P0 task for multi-agent MVP"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "implemented OrchestratorAgent with IntentClassifier, Pipelines, A2A models; 75 tests passing"}
 ---
 
 ## Описание
@@ -39,18 +40,18 @@ audit_log:
 
 ### Intent Classification
 
-- [ ] Реализован метод `classify_intent(query: str, role: str) -> ScenarioType`:
+- [x] Реализован метод `classify_intent(query: str, role: str) -> ScenarioType`:
   - `portfolio_risk` — анализ риска портфеля
   - `cfo_liquidity` — CFO-отчёт по ликвидности
   - `issuer_compare` — сравнение эмитента с пирами
   - `security_overview` — обзор одной бумаги
   - `securities_compare` — сравнение нескольких бумаг
   - `index_scan` — анализ индекса
-- [ ] Классификация на основе LLM-промпта или простых правил (keywords + role)
+- [x] Классификация на основе LLM-промпта или простых правил (keywords + role)
 
 ### Orchestration Flow
 
-- [ ] Для каждого `ScenarioType` определён pipeline сабагентов:
+- [x] Для каждого `ScenarioType` определён pipeline сабагентов:
   ```
   portfolio_risk:
     1. MarketDataSubagent (get prices, weights)
@@ -68,14 +69,14 @@ audit_log:
     2. RiskAnalyticsSubagent (issuer_peers_compare)
     3. ExplainerSubagent
   ```
-- [ ] Оркестратор последовательно вызывает сабагентов, передавая `AgentContext`
-- [ ] При ошибке сабагента — логирует и возвращает понятную ошибку (не падает)
+- [x] Оркестратор последовательно вызывает сабагентов, передавая `AgentContext`
+- [x] При ошибке сабагента — логирует и возвращает понятную ошибку (не падает)
 
 ### A2A Integration
 
-- [ ] `OrchestratorAgent.handle_request(a2a_input: A2AInput) -> A2AOutput`
-- [ ] Формирует `AgentContext` из `A2AInput`
-- [ ] После выполнения pipeline формирует `A2AOutput`:
+- [x] `OrchestratorAgent.handle_request(a2a_input: A2AInput) -> A2AOutput`
+- [x] Формирует `AgentContext` из `A2AInput`
+- [x] После выполнения pipeline формирует `A2AOutput`:
   - `output.text` — от ExplainerSubagent
   - `output.tables` — от RiskAnalyticsSubagent (если есть)
   - `output.dashboard` — от DashboardSubagent (если есть)
@@ -83,11 +84,11 @@ audit_log:
 
 ### Error Handling
 
-- [ ] Если сабагент вернул `status: "error"`, оркестратор:
+- [x] Если сабагент вернул `status: "error"`, оркестратор:
   - логирует ошибку
   - пытается продолжить с доступными данными (graceful degradation)
   - или возвращает пользователю понятное сообщение «Не удалось выполнить запрос»
-- [ ] Timeout на каждый сабагент (30s default)
+- [x] Timeout на каждый сабагент (30s default)
 
 ## Определение готовности
 

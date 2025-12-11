@@ -2,24 +2,9 @@
 Unit-тесты для модуля error_mapper.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
 
-# Импорт напрямую из файла, минуя __init__.py
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
-import importlib.util
-spec = importlib.util.spec_from_file_location(
-    "error_mapper",
-    ROOT / "moex_iss_mcp" / "error_mapper.py"
-)
-error_mapper = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(error_mapper)
-
-ErrorMapper = error_mapper.ErrorMapper
-ToolErrorModel = error_mapper.ToolErrorModel
+from moex_iss_sdk.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk.exceptions import (
     DateRangeTooLargeError,
     InvalidTickerError,

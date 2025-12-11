@@ -11,7 +11,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from .error_mapper import ToolErrorModel
+from moex_iss_sdk.error_mapper import ToolErrorModel
 
 
 class GetSecuritySnapshotInput(BaseModel):

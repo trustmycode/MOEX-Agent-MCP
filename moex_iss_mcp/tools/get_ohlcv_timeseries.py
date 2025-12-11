@@ -20,8 +20,8 @@ from moex_iss_mcp.domain_calculations import (
     calc_avg_daily_volume,
     calc_total_return_pct,
 )
-from moex_iss_mcp.error_mapper import ErrorMapper
 from moex_iss_mcp.models import GetOhlcvTimeseriesInput, GetOhlcvTimeseriesOutput
+from moex_iss_sdk.error_mapper import ErrorMapper
 from moex_iss_mcp.mcp_instance import mcp
 from moex_iss_mcp.telemetry import NullTracing
 from moex_iss_mcp.tools.utils import ToolResult

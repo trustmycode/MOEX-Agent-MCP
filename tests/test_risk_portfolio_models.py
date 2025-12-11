@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from moex_iss_mcp.error_mapper import ToolErrorModel
+from moex_iss_sdk.error_mapper import ToolErrorModel
 from risk_analytics_mcp.models import (
     ConcentrationMetrics,
     PortfolioMetrics,

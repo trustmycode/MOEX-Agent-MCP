@@ -7,13 +7,14 @@ type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
-children: [TASK-2025-036, TASK-2025-037, TASK-2025-038]
+updated: 2025-12-12
+children: [TASK-2025-036, TASK-2025-037, TASK-2025-038, TASK-2025-130, TASK-2025-131, TASK-2025-132]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Даёт наглядную демо-витрину для питча и использования агентных сценариев через веб-интерфейс."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Architect", action: "added CopilotKit-based Generative UI tasks (130-132)"}
 ---
 
 ## Описание

@@ -16,8 +16,8 @@ from fastmcp import Context
 from opentelemetry import trace
 from pydantic import Field
 
-from moex_iss_mcp.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk.utils import utc_now
+from moex_iss_sdk.error_mapper import ErrorMapper, ToolErrorModel
 
 from ..calculations import compute_rebalance, RebalanceError
 from ..mcp_instance import mcp

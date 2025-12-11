@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from moex_iss_mcp.error_mapper import ToolErrorModel
+from moex_iss_sdk.error_mapper import ToolErrorModel
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 

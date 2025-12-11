@@ -7,13 +7,14 @@ type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
-children: [TASK-2025-012, TASK-2025-013, TASK-2025-014, TASK-2025-015, TASK-2025-016, TASK-2025-017, TASK-2025-018, TASK-2025-019]
+updated: 2025-12-12
+children: [TASK-2025-012, TASK-2025-013, TASK-2025-014, TASK-2025-015, TASK-2025-016, TASK-2025-017, TASK-2025-018, TASK-2025-019, TASK-2025-141]
 arch_refs: [ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Даёт стабильный MCP-сервер с основными бизнес-инструментами и наблюдаемостью."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Architect", action: "added child task TASK-2025-141 for Evolution deployment preparation"}
 ---
 
 ## Описание

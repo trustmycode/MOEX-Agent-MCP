@@ -14,8 +14,8 @@ from fastmcp import Context
 from opentelemetry import trace
 from pydantic import Field
 
-from moex_iss_mcp.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk import IssClient
+from moex_iss_sdk.error_mapper import ErrorMapper, ToolErrorModel
 from moex_iss_sdk.exceptions import TooManyTickersError
 from moex_iss_sdk.utils import validate_date_range
 

@@ -1,8 +1,8 @@
 """
-Модуль для нормализации ошибок в унифицированный формат MCP.
+Маппер ошибок SDK в унифицированную модель для MCP-инструментов.
 
-ErrorMapper преобразует исключения SDK и другие ошибки в ToolErrorModel,
-который соответствует JSON Schema в SPEC.
+Позволяет сервисам (moex_iss_mcp, risk_analytics_mcp и др.) получать один и тот
+же формат ошибок без жёсткой зависимости на конкретный MCP-пакет.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-from moex_iss_sdk.exceptions import (
+from .exceptions import (
     DateRangeTooLargeError,
     InvalidTickerError,
     IssSdkError,
@@ -26,36 +26,25 @@ class ToolErrorModel(BaseModel):
     """
     Унифицированная модель ошибки для MCP-инструментов.
 
-    Соответствует JSON Schema в SPEC_moex-iss-mcp.md.
+    Совместима с JSON Schema, используемой сервисами MCP.
     """
 
     error_type: str = Field(description="Тип ошибки (INVALID_TICKER, ISS_TIMEOUT, и т.д.)")
     message: str = Field(description="Человекочитаемое сообщение об ошибке")
-    details: Optional[dict[str, Any]] = Field(
-        default=None, description="Дополнительные детали ошибки (опционально)"
-    )
+    details: Optional[dict[str, Any]] = Field(default=None, description="Дополнительные детали ошибки (опционально)")
 
 
 class ErrorMapper:
     """
     Маппер для преобразования исключений в ToolErrorModel.
-
-    Обрабатывает исключения SDK и другие типы ошибок, нормализуя их
-    в единый формат для MCP-инструментов.
     """
 
     @staticmethod
     def map_exception(exc: Exception) -> ToolErrorModel:
         """
         Преобразовать исключение в ToolErrorModel.
-
-        Args:
-            exc: Исключение для маппинга.
-
-        Returns:
-            ToolErrorModel с нормализованными полями.
         """
-        # Обработка исключений SDK
+        # Исключения SDK
         if isinstance(exc, IssSdkError):
             return ToolErrorModel(
                 error_type=exc.error_type,
@@ -63,7 +52,7 @@ class ErrorMapper:
                 details=exc.details if hasattr(exc, "details") else None,
             )
 
-        # Обработка стандартных исключений Python
+        # Валидационные ошибки
         if isinstance(exc, ValueError):
             return ToolErrorModel(
                 error_type="VALIDATION_ERROR",
@@ -78,11 +67,10 @@ class ErrorMapper:
                 details={"exception_type": type(exc).__name__},
             )
 
-        # Обработка сетевых/таймаут ошибок (если они не обёрнуты в SDK)
+        # Сетевые/таймаут ошибки (если не обёрнуты в SDK)
         error_message = str(exc) or "Unknown error"
         error_type = "UNKNOWN"
 
-        # Попытка определить тип по сообщению
         error_lower = error_message.lower()
         if "timeout" in error_lower or "timed out" in error_lower:
             error_type = "ISS_TIMEOUT"
@@ -103,40 +91,22 @@ class ErrorMapper:
     def map_iss_sdk_error(error: IssSdkError) -> ToolErrorModel:
         """
         Явный маппинг для исключений SDK (для удобства и явности).
-
-        Args:
-            error: Исключение из moex_iss_sdk.
-
-        Returns:
-            ToolErrorModel с соответствующими полями.
         """
-        return ToolErrorModel(
-            error_type=error.error_type,
-            message=error.message,
-            details=error.details,
-        )
+        return ToolErrorModel(error_type=error.error_type, message=error.message, details=error.details)
 
     @classmethod
     def get_error_type_for_exception(cls, exc: Exception) -> str:
         """
         Получить error_type для исключения без создания полной модели.
-
-        Args:
-            exc: Исключение.
-
-        Returns:
-            Строка с типом ошибки.
         """
         if isinstance(exc, IssSdkError):
             return exc.error_type
 
-        # Специфичные проверки для стандартных исключений
         if isinstance(exc, ValueError):
             return "VALIDATION_ERROR"
         if isinstance(exc, KeyError):
             return "VALIDATION_ERROR"
 
-        # Попытка определить по сообщению
         error_message = str(exc).lower()
         if "timeout" in error_message:
             return "ISS_TIMEOUT"
@@ -148,7 +118,18 @@ class ErrorMapper:
         return "UNKNOWN"
 
 
-# Пересборка модели для корректной работы с from __future__ import annotations
+# Пересборка модели для корректной работы с postponed annotations
 ToolErrorModel.model_rebuild()
 
 
+__all__ = [
+    "ErrorMapper",
+    "ToolErrorModel",
+    "IssSdkError",
+    "InvalidTickerError",
+    "DateRangeTooLargeError",
+    "TooManyTickersError",
+    "IssTimeoutError",
+    "IssServerError",
+    "UnknownIssError",
+]
