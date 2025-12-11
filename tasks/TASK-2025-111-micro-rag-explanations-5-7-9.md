@@ -1,20 +1,22 @@
 ---
 id: TASK-2025-111
 title: "Микро-RAG в сценариях 5/7/9 (FR-KB-MVP-1)"
-status: backlog
-priority: medium
+status: hold
+priority: low
 type: feature
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-11
-updated: 2025-12-11
+updated: 2025-12-12
 parents: [TASK-2025-005, TASK-2025-003]
 children: []
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Добавляет опциональные методические пояснения к метрикам риска в сценариях 5/7/9, не ломая базовый flow при отсутствии RAG."
+hold_reason: "ExplainerSubagent справится встроенными знаниями LLM для объяснений. RAG — nice-to-have после MVP."
 audit_log:
   - {date: 2025-12-11, user: "@AI-Codex", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "status → hold, priority → P2 (mentor feedback)"}
 ---
 
 ## Описание

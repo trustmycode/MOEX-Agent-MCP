@@ -1,19 +1,21 @@
 ---
 id: TASK-2025-008
 title: "Фаза 7. Расширенный риск-анализ и RAG Phase 2"
-status: backlog
+status: hold
 priority: low
 type: spike
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-10
+updated: 2025-12-12
 children: [TASK-2025-043, TASK-2025-044, TASK-2025-045, TASK-2025-051]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Фиксирует постановку расширенного риск-анализа (VaR, stress-тесты) и RAG по новостям/аналитике как roadmap после хакатона."
+hold_reason: "Слишком сложно для MVP. Хватит compute_portfolio_risk_basic + Var_light (TASK-077, TASK-103). Advanced VaR и Монте-Карло — roadmap."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "status → hold (too complex for MVP)"}
 ---
 
 ## Описание

@@ -18,6 +18,7 @@ from .tools import (  # noqa: F401
     compute_portfolio_risk_basic,
     issuer_peers_compare,
     suggest_rebalance,
+    build_cfo_liquidity_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class RiskMcpServer:
         from .tools.portfolio_risk import init_tool_dependencies as init_portfolio
         from .tools.issuer_peers_compare import init_tool_dependencies as init_peers
         from .tools.suggest_rebalance import init_tool_dependencies as init_rebalance
+        from .tools.cfo_liquidity_report import init_tool_dependencies as init_cfo_liquidity
 
         init_correlation(
             self.iss_client,
@@ -74,6 +76,13 @@ class RiskMcpServer:
         init_rebalance(
             self.metrics,
             self.tracing,
+        )
+        init_cfo_liquidity(
+            self.iss_client,
+            self.metrics,
+            self.tracing,
+            config.max_portfolio_tickers,
+            config.max_lookback_days,
         )
 
         self._register_routes()

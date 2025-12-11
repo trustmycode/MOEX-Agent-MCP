@@ -20,6 +20,18 @@
       "description": "Compare an issuer against peers using key fundamental and market metrics. Returns base issuer metrics, peer list with comparable data, ranking by P/E, EV/EBITDA, ROE, Debt/EBITDA, dividend yield, and heuristic flags (overvalued/undervalued, high_leverage, etc.).",
       "input_schema": { "$ref": "../docs/schemas/issuer_peers_compare_input.json" },
       "output_schema": { "$ref": "../docs/schemas/issuer_peers_compare_output.json" }
+    },
+    {
+      "name": "suggest_rebalance",
+      "description": "Generate deterministic rebalance proposal for a portfolio based on risk profile constraints (asset class limits, concentration limits, turnover limits).",
+      "input_schema": { "$ref": "../docs/schemas/suggest_rebalance_input.json" },
+      "output_schema": { "$ref": "../docs/schemas/suggest_rebalance_output.json" }
+    },
+    {
+      "name": "build_cfo_liquidity_report",
+      "description": "Build a CFO-oriented liquidity and resilience report. Includes liquidity profile by buckets, duration, currency exposure, concentrations, stress scenarios with covenant checks, recommendations and executive summary.",
+      "input_schema": { "$ref": "../docs/schemas/cfo_liquidity_report_input.json" },
+      "output_schema": { "$ref": "../docs/schemas/cfo_liquidity_report_output.json" }
     }
   ]
 }

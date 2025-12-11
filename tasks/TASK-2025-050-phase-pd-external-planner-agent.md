@@ -1,20 +1,22 @@
 ---
 id: TASK-2025-050
 title: "Фаза PD. Внешний Planner Agent (roadmap)"
-status: backlog
+status: hold
 priority: low
 type: spike
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-10
-updated: 2025-12-10
+updated: 2025-12-12
 parents: [TASK-2025-003]
 children: [TASK-2025-066, TASK-2025-067]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Определяет контракт и стратегию интеграции вынесенного Planner Agent с fallback в basic-планировщик."
+hold_reason: "Roadmap / Post-Hackathon. Внешний Planner Agent — nice-to-have после работающей мультиагентки."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "status → hold (post-hackathon roadmap)"}
 ---
 
 ## Описание

@@ -1,0 +1,353 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CfoLiquidityReport",
+  "description": "Output schema for risk-analytics-mcp.build_cfo_liquidity_report. CFO-ориентированный структурированный отчёт по ликвидности и устойчивости портфеля.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Метаданные запроса и расчёта.",
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Дата/время формирования отчёта."
+        },
+        "from_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "to_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "horizon_months": {
+          "type": "integer"
+        },
+        "base_currency": {
+          "type": "string"
+        },
+        "total_portfolio_value": {
+          "type": ["number", "null"]
+        },
+        "positions_count": {
+          "type": "integer"
+        },
+        "iss_base_url": {
+          "type": "string"
+        }
+      },
+      "required": ["as_of", "from_date", "to_date", "horizon_months", "base_currency"],
+      "additionalProperties": true
+    },
+    "liquidity_profile": {
+      "type": "object",
+      "description": "Профиль ликвидности портфеля по корзинам.",
+      "properties": {
+        "buckets": {
+          "type": "array",
+          "description": "Распределение активов по корзинам ликвидности.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bucket": {
+                "type": "string",
+                "enum": ["0-7d", "8-30d", "31-90d", "90d+"]
+              },
+              "weight_pct": {
+                "type": "number",
+                "description": "Доля портфеля в данной корзине, %."
+              },
+              "value": {
+                "type": ["number", "null"],
+                "description": "Стоимость в данной корзине (если известна total_portfolio_value)."
+              },
+              "tickers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Тикеры, попадающие в корзину."
+              }
+            },
+            "required": ["bucket", "weight_pct"]
+          }
+        },
+        "quick_ratio_pct": {
+          "type": ["number", "null"],
+          "description": "Доля высоколиквидных активов (0-7d), %."
+        },
+        "short_term_ratio_pct": {
+          "type": ["number", "null"],
+          "description": "Доля краткосрочных активов (0-30d), %."
+        }
+      },
+      "required": ["buckets"]
+    },
+    "duration_profile": {
+      "type": ["object", "null"],
+      "description": "Профиль дюрации для fixed income части.",
+      "properties": {
+        "portfolio_duration_years": {
+          "type": ["number", "null"],
+          "description": "Средневзвешенная дюрация долговой части портфеля."
+        },
+        "fixed_income_weight_pct": {
+          "type": ["number", "null"],
+          "description": "Доля fixed_income в портфеле, %."
+        },
+        "credit_spread_duration_years": {
+          "type": ["number", "null"],
+          "description": "Дюрация по кредитным спрэдам."
+        }
+      }
+    },
+    "currency_exposure": {
+      "type": "object",
+      "description": "Валютная структура портфеля.",
+      "properties": {
+        "by_currency": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "weight_pct": {
+                "type": "number"
+              },
+              "value": {
+                "type": ["number", "null"]
+              }
+            },
+            "required": ["currency", "weight_pct"]
+          }
+        },
+        "fx_risk_pct": {
+          "type": ["number", "null"],
+          "description": "Доля портфеля, подверженная валютному риску (не в базовой валюте), %."
+        }
+      },
+      "required": ["by_currency"]
+    },
+    "concentration_profile": {
+      "type": "object",
+      "description": "Концентрации портфеля.",
+      "properties": {
+        "top1_weight_pct": {
+          "type": ["number", "null"]
+        },
+        "top3_weight_pct": {
+          "type": ["number", "null"]
+        },
+        "top5_weight_pct": {
+          "type": ["number", "null"]
+        },
+        "hhi": {
+          "type": ["number", "null"],
+          "description": "Индекс Херфиндаля-Хиршмана (0..1)."
+        },
+        "by_asset_class": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "asset_class": {
+                "type": "string"
+              },
+              "weight_pct": {
+                "type": "number"
+              }
+            },
+            "required": ["asset_class", "weight_pct"]
+          }
+        }
+      }
+    },
+    "risk_metrics": {
+      "type": "object",
+      "description": "Ключевые метрики риска портфеля.",
+      "properties": {
+        "total_return_pct": {
+          "type": ["number", "null"],
+          "description": "Совокупная доходность портфеля, %."
+        },
+        "annualized_volatility_pct": {
+          "type": ["number", "null"],
+          "description": "Годовая волатильность, %."
+        },
+        "max_drawdown_pct": {
+          "type": ["number", "null"],
+          "description": "Максимальная просадка, %."
+        },
+        "var_light": {
+          "type": ["object", "null"],
+          "description": "Parametric VaR.",
+          "properties": {
+            "method": {
+              "type": "string"
+            },
+            "confidence_level": {
+              "type": "number"
+            },
+            "horizon_days": {
+              "type": "integer"
+            },
+            "var_pct": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "stress_scenarios": {
+      "type": "array",
+      "description": "Результаты стресс-тестирования.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Идентификатор сценария."
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание сценария."
+          },
+          "pnl_pct": {
+            "type": "number",
+            "description": "Оценка P&L, % от стоимости портфеля."
+          },
+          "pnl_value": {
+            "type": ["number", "null"],
+            "description": "Оценка P&L в базовой валюте (если известна total_portfolio_value)."
+          },
+          "liquidity_ratio_after": {
+            "type": ["number", "null"],
+            "description": "Коэффициент ликвидности после стресса."
+          },
+          "covenant_breaches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": ["number", "null"]
+                },
+                "actual": {
+                  "type": ["number", "null"]
+                }
+              },
+              "required": ["code", "description"]
+            }
+          },
+          "drivers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
+        },
+        "required": ["id", "description", "pnl_pct"]
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Рекомендации для CFO по улучшению ликвидности и снижению рисков.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "Приоритет рекомендации."
+          },
+          "category": {
+            "type": "string",
+            "enum": ["liquidity", "concentration", "duration", "fx_risk", "stress_resilience"],
+            "description": "Категория рекомендации."
+          },
+          "title": {
+            "type": "string",
+            "description": "Краткий заголовок рекомендации."
+          },
+          "description": {
+            "type": "string",
+            "description": "Развёрнутое описание рекомендации."
+          },
+          "action": {
+            "type": ["string", "null"],
+            "description": "Конкретное действие для выполнения."
+          }
+        },
+        "required": ["priority", "category", "title", "description"]
+      }
+    },
+    "executive_summary": {
+      "type": "object",
+      "description": "Executive summary для CFO — ключевые выводы.",
+      "properties": {
+        "overall_liquidity_status": {
+          "type": "string",
+          "enum": ["healthy", "adequate", "warning", "critical"],
+          "description": "Общий статус ликвидности."
+        },
+        "key_risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ключевые риски (текстовые)."
+        },
+        "key_strengths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ключевые сильные стороны."
+        },
+        "action_items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Приоритетные действия."
+        }
+      },
+      "required": ["overall_liquidity_status", "key_risks"]
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Информация об ошибке, если расчёт не удался.",
+      "properties": {
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": ["object", "null"]
+        }
+      },
+      "required": ["error_type", "message"]
+    }
+  },
+  "required": [
+    "metadata",
+    "liquidity_profile",
+    "currency_exposure",
+    "concentration_profile",
+    "stress_scenarios",
+    "recommendations",
+    "executive_summary"
+  ],
+  "additionalProperties": false
+}

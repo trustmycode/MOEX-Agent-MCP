@@ -756,6 +756,234 @@
 
 ---
 
+### 2.5. Tool: `build_cfo_liquidity_report`
+
+**Назначение:** формирование CFO-ориентированного структурированного отчёта по ликвидности и устойчивости портфеля (Сценарий 9). Отчёт включает профиль ликвидности, дюрацию, валютную экспозицию, концентрации, стресс-сценарии с проверкой ковенант, рекомендации и executive summary.
+
+#### Input JSON Schema
+
+Источник: `docs/schemas/cfo_liquidity_report_input.json`
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CfoLiquidityReportInput",
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Позиции портфеля с характеристиками ликвидности.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": { "type": "string", "description": "Ticker, e.g. SBER." },
+          "weight": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+          "asset_class": { "type": "string", "enum": ["equity", "fixed_income", "cash", "fx", "credit"] },
+          "liquidity_bucket": { "type": "string", "enum": ["0-7d", "8-30d", "31-90d", "90d+"] },
+          "currency": { "type": "string", "minLength": 3, "maxLength": 3 }
+        },
+        "required": ["ticker", "weight"]
+      }
+    },
+    "total_portfolio_value": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "base_currency": { "type": "string", "default": "RUB" },
+    "from_date": { "type": "string", "format": "date" },
+    "to_date": { "type": "string", "format": "date" },
+    "horizon_months": { "type": "integer", "minimum": 1, "maximum": 36, "default": 12 },
+    "stress_scenarios": { "type": ["array", "null"], "items": { "type": "string" } },
+    "aggregates": { "type": ["object", "null"] },
+    "covenant_limits": {
+      "type": ["object", "null"],
+      "properties": {
+        "max_net_debt_ebitda": { "type": ["number", "null"] },
+        "min_liquidity_ratio": { "type": ["number", "null"] },
+        "min_current_ratio": { "type": ["number", "null"] }
+      }
+    }
+  },
+  "required": ["positions", "from_date", "to_date"]
+}
+```
+
+#### Output JSON Schema
+
+Источник: `docs/schemas/cfo_liquidity_report_output.json`
+
+Основные секции выхода:
+
+- `metadata` — метаданные запроса и расчёта;
+- `liquidity_profile` — профиль ликвидности по корзинам (0-7d, 8-30d, 31-90d, 90d+);
+- `duration_profile` — профиль дюрации для fixed income части;
+- `currency_exposure` — валютная структура портфеля;
+- `concentration_profile` — концентрации по позициям и классам активов;
+- `risk_metrics` — ключевые метрики риска (доходность, волатильность, VaR);
+- `stress_scenarios` — результаты стресс-тестирования с проверкой ковенант;
+- `recommendations` — рекомендации для CFO;
+- `executive_summary` — executive summary со статусом ликвидности, ключевыми рисками и действиями.
+
+#### Поддерживаемые `error_type` для `build_cfo_liquidity_report`
+
+| error_type | Описание |
+|------------|----------|
+| `VALIDATION_ERROR` | Нарушение контрактов схемы/валидаторов. |
+| `TOO_MANY_TICKERS` | Превышен лимит позиций в портфеле. |
+| `DATE_RANGE_TOO_LARGE` | Превышена глубина истории. |
+| `ISS_TIMEOUT` / `ISS_5XX` | Сетевые/серверные ошибки ISS. |
+| `UNKNOWN` | Прочие неисчерпывающие ошибки. |
+
+#### Пример запроса/ответа
+
+**Request:**
+```json
+{
+  "positions": [
+    { "ticker": "SBER", "weight": 0.30, "asset_class": "equity", "liquidity_bucket": "0-7d", "currency": "RUB" },
+    { "ticker": "GAZP", "weight": 0.20, "asset_class": "equity", "liquidity_bucket": "0-7d", "currency": "RUB" },
+    { "ticker": "OFZ26238", "weight": 0.25, "asset_class": "fixed_income", "liquidity_bucket": "8-30d", "currency": "RUB" },
+    { "ticker": "USDRUB", "weight": 0.15, "asset_class": "fx", "liquidity_bucket": "0-7d", "currency": "USD" },
+    { "ticker": "LKOH", "weight": 0.10, "asset_class": "equity", "liquidity_bucket": "0-7d", "currency": "RUB" }
+  ],
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31",
+  "base_currency": "RUB",
+  "total_portfolio_value": 10000000.0,
+  "horizon_months": 12,
+  "stress_scenarios": ["base_case", "equity_-10_fx_+20", "rates_+300bp"],
+  "aggregates": {
+    "fixed_income_duration_years": 3.5
+  },
+  "covenant_limits": {
+    "min_liquidity_ratio": 0.25
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "metadata": {
+    "as_of": "2025-01-15T10:30:00Z",
+    "from_date": "2024-01-01",
+    "to_date": "2024-12-31",
+    "horizon_months": 12,
+    "base_currency": "RUB",
+    "total_portfolio_value": 10000000.0,
+    "positions_count": 5
+  },
+  "liquidity_profile": {
+    "buckets": [
+      { "bucket": "0-7d", "weight_pct": 75.0, "value": 7500000.0, "tickers": ["SBER", "GAZP", "USDRUB", "LKOH"] },
+      { "bucket": "8-30d", "weight_pct": 25.0, "value": 2500000.0, "tickers": ["OFZ26238"] },
+      { "bucket": "31-90d", "weight_pct": 0.0, "value": 0.0, "tickers": [] },
+      { "bucket": "90d+", "weight_pct": 0.0, "value": 0.0, "tickers": [] }
+    ],
+    "quick_ratio_pct": 75.0,
+    "short_term_ratio_pct": 100.0
+  },
+  "duration_profile": {
+    "portfolio_duration_years": 3.5,
+    "fixed_income_weight_pct": 25.0,
+    "credit_spread_duration_years": null
+  },
+  "currency_exposure": {
+    "by_currency": [
+      { "currency": "RUB", "weight_pct": 85.0, "value": 8500000.0 },
+      { "currency": "USD", "weight_pct": 15.0, "value": 1500000.0 }
+    ],
+    "fx_risk_pct": 15.0
+  },
+  "concentration_profile": {
+    "top1_weight_pct": 30.0,
+    "top3_weight_pct": 75.0,
+    "top5_weight_pct": 100.0,
+    "hhi": 0.225,
+    "by_asset_class": [
+      { "asset_class": "equity", "weight_pct": 60.0 },
+      { "asset_class": "fixed_income", "weight_pct": 25.0 },
+      { "asset_class": "fx", "weight_pct": 15.0 }
+    ]
+  },
+  "risk_metrics": {
+    "total_return_pct": 15.2,
+    "annualized_volatility_pct": 18.5,
+    "max_drawdown_pct": -8.3,
+    "var_light": {
+      "method": "parametric_normal",
+      "confidence_level": 0.95,
+      "horizon_days": 1,
+      "var_pct": 1.92
+    }
+  },
+  "stress_scenarios": [
+    {
+      "id": "base_case",
+      "description": "Базовый сценарий — без стрессов.",
+      "pnl_pct": 0.0,
+      "pnl_value": 0.0,
+      "liquidity_ratio_after": 100.0,
+      "covenant_breaches": []
+    },
+    {
+      "id": "equity_-10_fx_+20",
+      "description": "Падение акций на 10% и ослабление базовой валюты на 20%.",
+      "pnl_pct": -3.0,
+      "pnl_value": -300000.0,
+      "liquidity_ratio_after": 97.0,
+      "covenant_breaches": [],
+      "drivers": {
+        "equity_weight_pct": 60.0,
+        "fx_exposed_weight_pct": 15.0
+      }
+    },
+    {
+      "id": "rates_+300bp",
+      "description": "Рост ставок на 300 bps с учётом дюрации долгового портфеля.",
+      "pnl_pct": -2.63,
+      "pnl_value": -262500.0,
+      "liquidity_ratio_after": 97.37,
+      "covenant_breaches": [],
+      "drivers": {
+        "fixed_income_weight_pct": 25.0,
+        "duration_years": 3.5
+      }
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "high",
+      "category": "concentration",
+      "title": "Высокая концентрация в одной позиции",
+      "description": "Крупнейшая позиция занимает 30% портфеля, что создаёт существенный идиосинкратический риск.",
+      "action": "Снизить долю крупнейшей позиции до уровня не более 20-25%."
+    },
+    {
+      "priority": "medium",
+      "category": "concentration",
+      "title": "Повышенная концентрация портфеля",
+      "description": "Индекс Херфиндаля-Хиршмана (0.225) указывает на недостаточную диверсификацию.",
+      "action": "Увеличить количество позиций или перераспределить веса для улучшения диверсификации."
+    }
+  ],
+  "executive_summary": {
+    "overall_liquidity_status": "adequate",
+    "key_risks": [
+      "Высокая концентрация в отдельных позициях",
+      "Потенциальные потери до 3% при стрессе"
+    ],
+    "key_strengths": [
+      "Высокий уровень ликвидности"
+    ],
+    "action_items": [
+      "Снизить долю крупнейшей позиции до уровня не более 20-25%."
+    ]
+  },
+  "error": null
+}
+```
+
+---
+
 ## 5. FundamentalsDataProvider (MVP)
 
 Для сценариев 5/7/9 (`issuer_peers_compare`, `portfolio_risk`, `cfo_liquidity_report`) в

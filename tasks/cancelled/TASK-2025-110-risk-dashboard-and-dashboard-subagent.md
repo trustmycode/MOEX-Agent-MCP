@@ -1,20 +1,23 @@
 ---
 id: TASK-2025-110
 title: "Risk Dashboard и DashboardSubagent"
-status: backlog
-priority: medium
+status: cancelled
+priority: low
 type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-11
-updated: 2025-12-11
+updated: 2025-12-12
 parents: [TASK-2025-003, TASK-2025-006]
 children: []
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Даёт структурированный Risk Dashboard (JSON) для сценариев portfolio_risk и cfo_liquidity_report, готовый к использованию в Web-UI / AGI UI."
+superseded_by: [TASK-2025-123]
+cancellation_reason: "Дубликат. Задача полностью поглощена TASK-2025-123 (Explainer & Dashboard Subagents)."
 audit_log:
   - {date: 2025-12-11, user: "@AI-Codex", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "cancelled — дубликат TASK-2025-123"}
 ---
 
 ## Описание

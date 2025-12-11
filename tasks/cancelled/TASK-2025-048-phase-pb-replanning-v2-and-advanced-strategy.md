@@ -1,8 +1,9 @@
 ---
 id: TASK-2025-048
 title: "Фаза PB. Re-planning v2 и AdvancedPlanningStrategy"
-status: backlog
-priority: medium
+status: cancelled
+priority: low
+cancellation_reason: "Сложный перепланировщик не нужен в новой архитектуре. Если сабагент ошибся, Оркестратор просто скажет пользователю 'Не смог'."
 type: feature
 estimate: 32h
 assignee: @unassigned

@@ -1,20 +1,22 @@
 ---
 id: TASK-2025-046
 title: "Фаза P0. Basic-планировщик и лимиты"
-status: backlog
-priority: high
+status: cancelled
+priority: low
 type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-10
-updated: 2025-12-10
+updated: 2025-12-12
 parents: [TASK-2025-003]
 children: [TASK-2025-052, TASK-2025-053, TASK-2025-054]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Фиксирует basic-режим планировщика с жёсткими лимитами и простым re-plan, включая поддержку сценария portfolio_risk."
+cancellation_reason: "Логика лимитов теперь встроена в промпты и код конкретных сабагентов (MarketDataSubagent, RiskAnalyticsSubagent), а не в общий планировщик."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "cancelled — лимиты переехали в сабагентов"}
 ---
 
 ## Описание

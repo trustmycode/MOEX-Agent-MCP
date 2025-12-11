@@ -1,20 +1,22 @@
 ---
 id: TASK-2025-112
 title: "Voice Gateway и голосовой CFO-ассистент (7/9)"
-status: backlog
+status: hold
 priority: low
 type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-11
-updated: 2025-12-11
+updated: 2025-12-12
 parents: [TASK-2025-004, TASK-2025-105]
 children: []
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Добавляет голосовой интерфейс для сценариев portfolio_risk и cfo_liquidity_report, улучшая UX для CFO и демонстрационную ценность."
+hold_reason: "Голос — это 'вау-эффект', но без работающей логики агентов он бесполезен. Делать в последнюю ночь, если всё остальное работает. P2."
 audit_log:
   - {date: 2025-12-11, user: "@AI-Codex", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "status → hold, priority → P2 (only if time remains)"}
 ---
 
 ## Описание

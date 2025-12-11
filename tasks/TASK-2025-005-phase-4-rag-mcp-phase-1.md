@@ -1,19 +1,21 @@
 ---
 id: TASK-2025-005
 title: "Фаза 4. RAG MCP — методологии и гайды"
-status: backlog
-priority: medium
+status: hold
+priority: low
 type: feature
 estimate: 24h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
+updated: 2025-12-12
 children: [TASK-2025-033, TASK-2025-034, TASK-2025-035]
 arch_refs: [ARCH-agent-moex-market-analyst]
 risk: medium
 benefit: "Добавляет текстовый контекст (методики, регламенты, шаблоны отчётов) для пояснений и обоснований в ответах агента."
+hold_reason: "Ментор: 'RAG не приоритет'. Делать только если останется время после MVP мультиагентки."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "status → hold, priority → P2 (mentor feedback)"}
 ---
 
 ## Описание

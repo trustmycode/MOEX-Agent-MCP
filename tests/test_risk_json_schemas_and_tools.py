@@ -38,6 +38,10 @@ def test_risk_schemas_are_valid():
         "compute_correlation_matrix_output.json",
         "issuer_peers_compare_input.json",
         "issuer_peers_compare_output.json",
+        "suggest_rebalance_input.json",
+        "suggest_rebalance_output.json",
+        "cfo_liquidity_report_input.json",
+        "cfo_liquidity_report_output.json",
     ]:
         schema = _load_schema(filename)
         Draft7Validator.check_schema(schema)
@@ -46,7 +50,13 @@ def test_risk_schemas_are_valid():
 def test_tools_json_references_exist_and_named():
     tools_data = json.loads(TOOLS_JSON.read_text())
     names = {tool["name"] for tool in tools_data.get("tools", [])}
-    assert names == {"compute_portfolio_risk_basic", "compute_correlation_matrix", "issuer_peers_compare"}
+    assert names == {
+        "compute_portfolio_risk_basic",
+        "compute_correlation_matrix",
+        "issuer_peers_compare",
+        "suggest_rebalance",
+        "build_cfo_liquidity_report",
+    }
 
     base_dir = TOOLS_JSON.parent
     for tool in tools_data["tools"]:

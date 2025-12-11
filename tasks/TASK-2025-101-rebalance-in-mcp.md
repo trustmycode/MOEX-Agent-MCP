@@ -2,7 +2,8 @@
 
 ## Статус
 
-- Статус: ✅ completed
+- Статус: ✅ **DONE**
+- Дата завершения: 2025-12-11
 - Приоритет: P0
 - Компонент: risk-analytics-mcp
 - Связанные сценарии: portfolio_risk (7), cfo_liquidity_report (9)
@@ -46,5 +47,35 @@
 - [x] Реализовано минимум 3 unit-теста с фиксированными портфелями, которые полностью проходят.
 - [x] В случае невыполнимых ограничений MCP возвращает структурированную ошибку с человекочитаемым описанием (для последующей интерпретации агентом).
 - [x] В README/спеке MCP добавлен раздел с примером JSON-запроса/ответа для `suggest_rebalance`.
+- [x] E2E тесты через curl прошли успешно (10 сценариев).
 
+## Результаты тестирования
+
+### Unit-тесты
+- `tests/test_suggest_rebalance.py` — 17 тестов ✅
+- `tests/test_suggest_rebalance_e2e.py` — 15 тестов ✅
+
+### E2E сценарии (curl)
+| # | Сценарий | Статус |
+|---|----------|--------|
+| 1 | Снижение концентрации SBER 45%→25% | ✅ |
+| 2 | Концентрация по эмитенту Сбербанк | ✅ |
+| 3 | Целевая аллокация 60/40 | ✅ |
+| 4 | Консервативная (оборот 5%) | ✅ |
+| 5 | CFO квартальная (50M ₽) | ✅ |
+| 6 | Пенсионный фонд (100M ₽) | ✅ |
+| 7 | Небольшой портфель (10K ₽) | ✅ |
+| 100 | Пустой портфель | ✅ ошибка |
+| 101 | Веса ≠ 1.0 | ✅ ошибка |
+| 102 | Одна позиция | ✅ warnings |
+
+### Файлы
+- `risk_analytics_mcp/calculations/rebalance.py` — логика ребалансировки
+- `risk_analytics_mcp/tools/suggest_rebalance.py` — MCP tool
+- `risk_analytics_mcp/models/__init__.py` — Pydantic-модели
+- `docs/schemas/suggest_rebalance_input.json` — JSON Schema входа
+- `docs/schemas/suggest_rebalance_output.json` — JSON Schema выхода
+- `docs/SPEC_risk-analytics-mcp.md` — спецификация
+- `tests/e2e_suggest_rebalance_curl.md` — E2E сценарии curl
+- `tests/e2e_suggest_rebalance.sh` — автоматический скрипт
 

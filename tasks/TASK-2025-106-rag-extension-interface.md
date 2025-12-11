@@ -2,10 +2,11 @@
 
 ## Статус
 
-- Статус: planned
+- Статус: **hold**
 - Приоритет: P2 (post-hackathon)
 - Компонент: risk-analytics-mcp / бизнес-агент / Evolution
 - Связанные сценарии: issuer_peers_compare (5), cfo_liquidity_report (9) — потенциально
+- **Hold Reason**: Архитектурная красота менее важна, чем работающий мультиагент. Откладываем до стабилизации MVP.
 
 ## Контекст
 

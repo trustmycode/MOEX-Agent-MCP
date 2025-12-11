@@ -2,10 +2,12 @@
 
 ## Статус
 
-- Статус: planned
-- Приоритет: P0
+- Статус: **cancelled**
+- Приоритет: ~~P0~~ → low
 - Компонент: бизнес-агент / Evolution AI Agents
 - Связанные сценарии: issuer_peers_compare (5), portfolio_risk (7), cfo_liquidity_report (9)
+- **Причина отмены**: Жёсткие шаблоны `ScenarioTemplate` заменяются логикой `OrchestratorAgent` (TASK-2025-122), который динамически выбирает сабагентов.
+- **Заменено на**: [TASK-2025-120, TASK-2025-121, TASK-2025-122, TASK-2025-123]
 
 ## Контекст
 

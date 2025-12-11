@@ -1,20 +1,22 @@
 ---
 id: TASK-2025-047
 title: "Фаза PA. Расширяемая архитектура планировщика"
-status: backlog
-priority: high
+status: cancelled
+priority: low
 type: feature
 estimate: 32h
 assignee: @unassigned
 created: 2025-12-10
-updated: 2025-12-10
+updated: 2025-12-12
 parents: [TASK-2025-003]
 children: [TASK-2025-056, TASK-2025-057, TASK-2025-058]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Переводит планировщик на стратегию PlanningStrategy с ToolRegistry и телеметрией, готовя его к advanced-режиму и внешнему Planner Agent."
+cancellation_reason: "Мультиагентная архитектура (Orchestrator + Subagents) сама по себе является расширяемой. Старые планы по усложнению монолитного планера неактуальны."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "cancelled — заменено мультиагентной архитектурой"}
 ---
 
 ## Описание
