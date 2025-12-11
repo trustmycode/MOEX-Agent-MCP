@@ -5,6 +5,7 @@
 from .correlation_matrix import compute_correlation_matrix, compute_correlation_matrix_core
 from .portfolio_risk import compute_portfolio_risk_basic, compute_portfolio_risk_basic_core
 from .issuer_peers_compare import issuer_peers_compare, issuer_peers_compare_core
+from .suggest_rebalance import suggest_rebalance, suggest_rebalance_core
 
 __all__ = [
     "compute_portfolio_risk_basic_core",
@@ -13,4 +14,6 @@ __all__ = [
     "compute_correlation_matrix",
     "issuer_peers_compare_core",
     "issuer_peers_compare",
+    "suggest_rebalance_core",
+    "suggest_rebalance",
 ]

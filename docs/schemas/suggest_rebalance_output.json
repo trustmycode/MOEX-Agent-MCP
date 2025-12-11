@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SuggestRebalanceOutput",
+  "description": "Output schema for risk-analytics-mcp.suggest_rebalance tool.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Request metadata and calculation details.",
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "input_positions_count": { "type": "integer", "minimum": 0 },
+        "total_portfolio_value": { "type": ["number", "null"] },
+        "risk_profile": {
+          "type": "object",
+          "properties": {
+            "max_turnover": { "type": "number" },
+            "max_single_position_weight": { "type": "number" },
+            "max_issuer_weight": { "type": "number" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "target_weights": {
+      "type": "object",
+      "description": "Target weights by ticker after rebalancing.",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "trades": {
+      "type": "array",
+      "description": "Proposed trades for rebalancing.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Ticker for the trade."
+          },
+          "side": {
+            "type": "string",
+            "enum": ["buy", "sell"],
+            "description": "Trade direction."
+          },
+          "weight_delta": {
+            "type": "number",
+            "description": "Weight change (positive for buy, negative for sell)."
+          },
+          "target_weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Target weight after rebalancing."
+          },
+          "estimated_value": {
+            "type": ["number", "null"],
+            "description": "Estimated trade value (if total_portfolio_value provided)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for trade (concentration, asset_class, etc.)."
+          }
+        },
+        "required": ["ticker", "side", "weight_delta", "target_weight"],
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": ["object", "null"],
+      "description": "Rebalancing summary.",
+      "properties": {
+        "total_turnover": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Total turnover (sum of |delta| / 2)."
+        },
+        "turnover_within_limit": {
+          "type": "boolean",
+          "description": "Whether turnover is within max_turnover limit."
+        },
+        "positions_changed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of positions with changes."
+        },
+        "concentration_issues_resolved": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of concentration issues resolved."
+        },
+        "asset_class_issues_resolved": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of asset class issues resolved."
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Warnings during rebalancing."
+        }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Error details if rebalancing failed.",
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": ["object", "null"], "additionalProperties": true }
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "target_weights", "trades"],
+  "additionalProperties": false
+}

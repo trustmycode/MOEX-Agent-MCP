@@ -17,6 +17,7 @@ from .tools import (  # noqa: F401
     compute_correlation_matrix,
     compute_portfolio_risk_basic,
     issuer_peers_compare,
+    suggest_rebalance,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class RiskMcpServer:
         from .tools.correlation_matrix import init_tool_dependencies as init_correlation
         from .tools.portfolio_risk import init_tool_dependencies as init_portfolio
         from .tools.issuer_peers_compare import init_tool_dependencies as init_peers
+        from .tools.suggest_rebalance import init_tool_dependencies as init_rebalance
 
         init_correlation(
             self.iss_client,
@@ -68,6 +70,10 @@ class RiskMcpServer:
             self.tracing,
             config.max_peers,
             config.default_index_ticker,
+        )
+        init_rebalance(
+            self.metrics,
+            self.tracing,
         )
 
         self._register_routes()

@@ -565,6 +565,197 @@
 
 ---
 
+### 2.4. Tool: `suggest_rebalance`
+
+**Назначение:** формирование детерминированного предложения по ребалансировке портфеля с учётом заданного профиля риска (ограничения по классам активов, концентрации, обороту).
+
+#### Input JSON Schema
+
+Источник: `docs/schemas/suggest_rebalance_input.json`
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SuggestRebalanceInput",
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Current portfolio positions with weights.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": { "type": "string", "description": "Ticker, e.g. SBER." },
+          "current_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "asset_class": { "type": "string", "default": "equity" },
+          "issuer": { "type": ["string", "null"] }
+        },
+        "required": ["ticker", "current_weight"]
+      }
+    },
+    "total_portfolio_value": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "risk_profile": {
+      "type": "object",
+      "properties": {
+        "max_equity_weight": { "type": "number", "default": 1.0 },
+        "max_fixed_income_weight": { "type": "number", "default": 1.0 },
+        "max_fx_weight": { "type": "number", "default": 1.0 },
+        "max_single_position_weight": { "type": "number", "default": 0.25 },
+        "max_issuer_weight": { "type": "number", "default": 0.30 },
+        "max_turnover": { "type": "number", "default": 0.50 },
+        "target_asset_class_weights": { "type": "object" }
+      }
+    }
+  },
+  "required": ["positions"]
+}
+```
+
+Дополнительно валидируется вне схемы: сумма `current_weight` ≈ 1.0 (tolerance 1%), уникальность тикеров.
+
+#### Output JSON Schema
+
+Источник: `docs/schemas/suggest_rebalance_output.json`
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SuggestRebalanceOutput",
+  "type": "object",
+  "properties": {
+    "metadata": { "type": "object" },
+    "target_weights": {
+      "type": "object",
+      "description": "Target weights by ticker after rebalancing."
+    },
+    "trades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": { "type": "string" },
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "weight_delta": { "type": "number" },
+          "target_weight": { "type": "number" },
+          "estimated_value": { "type": ["number", "null"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": ["object", "null"],
+      "properties": {
+        "total_turnover": { "type": "number" },
+        "turnover_within_limit": { "type": "boolean" },
+        "positions_changed": { "type": "integer" },
+        "concentration_issues_resolved": { "type": "integer" },
+        "asset_class_issues_resolved": { "type": "integer" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "error": { "type": ["object", "null"] }
+  },
+  "required": ["metadata", "target_weights", "trades"]
+}
+```
+
+#### Поддерживаемые `error_type` для `suggest_rebalance`
+
+| error_type | Описание |
+|------------|----------|
+| `EMPTY_PORTFOLIO` | Портфель не содержит позиций. |
+| `CONSTRAINTS_INFEASIBLE` | Невозможно достичь целевого профиля (например, 1 позиция с лимитом <100%). |
+| `VALIDATION_ERROR` | Нарушение контрактов схемы/валидаторов. |
+| `UNKNOWN` | Прочие неисчерпывающие ошибки. |
+
+#### Пример запроса/ответа
+
+**Request:**
+```json
+{
+  "positions": [
+    { "ticker": "SBER", "current_weight": 0.45, "asset_class": "equity" },
+    { "ticker": "GAZP", "current_weight": 0.20, "asset_class": "equity" },
+    { "ticker": "LKOH", "current_weight": 0.15, "asset_class": "equity" },
+    { "ticker": "OFZ", "current_weight": 0.20, "asset_class": "fixed_income" }
+  ],
+  "total_portfolio_value": 5000000.0,
+  "risk_profile": {
+    "max_single_position_weight": 0.25,
+    "max_issuer_weight": 0.30,
+    "max_turnover": 0.30
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "metadata": {
+    "as_of": "2025-01-15T10:30:00Z",
+    "input_positions_count": 4,
+    "total_portfolio_value": 5000000.0,
+    "risk_profile": {
+      "max_turnover": 0.30,
+      "max_single_position_weight": 0.25,
+      "max_issuer_weight": 0.30
+    }
+  },
+  "target_weights": {
+    "SBER": 0.25,
+    "GAZP": 0.25,
+    "LKOH": 0.25,
+    "OFZ": 0.25
+  },
+  "trades": [
+    {
+      "ticker": "SBER",
+      "side": "sell",
+      "weight_delta": -0.20,
+      "target_weight": 0.25,
+      "estimated_value": 1000000.0,
+      "reason": "rebalance"
+    },
+    {
+      "ticker": "GAZP",
+      "side": "buy",
+      "weight_delta": 0.05,
+      "target_weight": 0.25,
+      "estimated_value": 250000.0,
+      "reason": "rebalance"
+    },
+    {
+      "ticker": "LKOH",
+      "side": "buy",
+      "weight_delta": 0.10,
+      "target_weight": 0.25,
+      "estimated_value": 500000.0,
+      "reason": "rebalance"
+    },
+    {
+      "ticker": "OFZ",
+      "side": "buy",
+      "weight_delta": 0.05,
+      "target_weight": 0.25,
+      "estimated_value": 250000.0,
+      "reason": "rebalance"
+    }
+  ],
+  "summary": {
+    "total_turnover": 0.20,
+    "turnover_within_limit": true,
+    "positions_changed": 4,
+    "concentration_issues_resolved": 1,
+    "asset_class_issues_resolved": 0,
+    "warnings": []
+  },
+  "error": null
+}
+```
+
+---
+
 ## 5. FundamentalsDataProvider (MVP)
 
 Для сценариев 5/7/9 (`issuer_peers_compare`, `portfolio_risk`, `cfo_liquidity_report`) в

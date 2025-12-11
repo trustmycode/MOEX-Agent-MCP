@@ -26,6 +26,11 @@ from .stress_var import (
     compute_var_light,
     run_stress_scenarios,
 )
+from .rebalance import (
+    compute_rebalance,
+    RebalanceError,
+    RebalanceResult,
+)
 
 __all__ = [
     "DailyReturn",
@@ -51,4 +56,8 @@ __all__ = [
     "derive_flags",
     "has_meaningful_metrics",
     "METRIC_PREFERENCES",
+    # Rebalance
+    "compute_rebalance",
+    "RebalanceError",
+    "RebalanceResult",
 ]

@@ -565,6 +565,201 @@ class IssuerPeersCompareReport(BaseModel):
         )
 
 
+# =============================================================================
+# Модели для suggest_rebalance
+# =============================================================================
+
+
+class RiskProfileTarget(BaseModel):
+    """
+    Целевой профиль риска для ребалансировки.
+
+    Содержит ограничения по классам активов, концентрации и обороту.
+    """
+
+    max_equity_weight: float = Field(
+        default=1.0, ge=0, le=1, description="Максимальная доля акций в портфеле (0..1)."
+    )
+    max_fixed_income_weight: float = Field(
+        default=1.0, ge=0, le=1, description="Максимальная доля облигаций в портфеле (0..1)."
+    )
+    max_fx_weight: float = Field(
+        default=1.0, ge=0, le=1, description="Максимальная доля валютных активов в портфеле (0..1)."
+    )
+    max_single_position_weight: float = Field(
+        default=0.25, gt=0, le=1, description="Максимальная доля одной позиции (лимит концентрации)."
+    )
+    max_issuer_weight: float = Field(
+        default=0.30, gt=0, le=1, description="Максимальная доля одного эмитента в портфеле."
+    )
+    max_turnover: float = Field(
+        default=0.50, ge=0, le=1, description="Максимально допустимый оборот при ребалансировке (0..1)."
+    )
+    target_asset_class_weights: dict[str, float] = Field(
+        default_factory=dict,
+        description="Целевые веса по классам активов (equity, fixed_income, fx и т.п.), сумма может быть <1.",
+    )
+
+    @field_validator("target_asset_class_weights")
+    @classmethod
+    def validate_target_weights(cls, value: dict[str, float]) -> dict[str, float]:
+        cleaned: dict[str, float] = {}
+        total = 0.0
+        for key, weight in value.items():
+            if weight is None:
+                continue
+            if weight < 0:
+                raise ValueError("Target asset class weights must be non-negative")
+            if weight > 1:
+                raise ValueError("Target asset class weight cannot exceed 1.0")
+            cleaned[key.strip().lower()] = float(weight)
+            total += weight
+        if total > 1.01:
+            raise ValueError("Sum of target asset class weights cannot exceed 1.0")
+        return cleaned
+
+
+class RebalancePosition(BaseModel):
+    """
+    Позиция портфеля для ребалансировки с опциональными метаданными.
+    """
+
+    ticker: str = Field(min_length=1, max_length=32, description="Ticker, e.g. SBER.")
+    current_weight: float = Field(ge=0, le=1, description="Текущий вес позиции в портфеле (0..1).")
+    current_value: Optional[float] = Field(
+        default=None, ge=0, description="Текущая стоимость позиции (опционально)."
+    )
+    asset_class: str = Field(
+        default="equity", min_length=1, description="Класс актива (equity, fixed_income, fx, cash и т.п.)."
+    )
+    issuer: Optional[str] = Field(
+        default=None, description="Код эмитента (для группировки по эмитентам)."
+    )
+    board: Optional[str] = Field(default=None, min_length=1, max_length=16, description="MOEX board (optional).")
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("Ticker cannot be empty")
+        return normalized
+
+    @field_validator("asset_class")
+    @classmethod
+    def normalize_asset_class(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("Asset class cannot be empty")
+        return normalized
+
+    @field_validator("issuer")
+    @classmethod
+    def normalize_issuer(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+
+class RebalanceInput(BaseModel):
+    """
+    Входные данные для suggest_rebalance: текущий портфель и целевые ограничения.
+    """
+
+    positions: list[RebalancePosition] = Field(
+        min_length=1, description="Текущие позиции портфеля с весами."
+    )
+    total_portfolio_value: Optional[float] = Field(
+        default=None, gt=0, description="Общая стоимость портфеля (для расчёта сделок в единицах)."
+    )
+    risk_profile: RiskProfileTarget = Field(
+        default_factory=RiskProfileTarget, description="Целевой профиль риска и ограничения."
+    )
+
+    @model_validator(mode="after")
+    def validate_positions(self) -> "RebalanceInput":
+        total_weight = sum(pos.current_weight for pos in self.positions)
+        if total_weight <= 0:
+            raise ValueError("Positions current_weight must be positive and non-zero")
+        if not (0.99 <= total_weight <= 1.01):
+            raise ValueError("Positions current_weight must sum to 1.0 within 1% tolerance")
+
+        tickers = [pos.ticker for pos in self.positions]
+        if len(tickers) != len(set(tickers)):
+            raise ValueError("Positions tickers must be unique")
+        return self
+
+
+class RebalanceTrade(BaseModel):
+    """
+    Предлагаемая сделка при ребалансировке.
+    """
+
+    ticker: str = Field(min_length=1, max_length=32, description="Ticker бумаги для сделки.")
+    side: Literal["buy", "sell"] = Field(description="Направление сделки: buy или sell.")
+    weight_delta: float = Field(description="Изменение веса (положительное для buy, отрицательное для sell).")
+    target_weight: float = Field(ge=0, le=1, description="Целевой вес после ребалансировки.")
+    estimated_value: Optional[float] = Field(
+        default=None, description="Оценка стоимости сделки (если задана total_portfolio_value)."
+    )
+    reason: str = Field(default="", description="Причина сделки (concentration, asset_class и т.п.).")
+
+
+class RebalanceSummary(BaseModel):
+    """
+    Сводка по результату ребалансировки.
+    """
+
+    total_turnover: float = Field(ge=0, le=1, description="Суммарный оборот (сумма |delta| / 2).")
+    turnover_within_limit: bool = Field(description="Оборот не превышает max_turnover.")
+    positions_changed: int = Field(ge=0, description="Количество позиций с изменениями.")
+    concentration_issues_resolved: int = Field(ge=0, description="Количество устранённых нарушений концентрации.")
+    asset_class_issues_resolved: int = Field(ge=0, description="Количество устранённых нарушений по классам активов.")
+    warnings: list[str] = Field(default_factory=list, description="Предупреждения при ребалансировке.")
+
+
+class RebalanceOutput(BaseModel):
+    """
+    Ответ инструмента suggest_rebalance: целевые веса и сделки.
+    """
+
+    metadata: dict = Field(default_factory=dict, description="Метаданные запроса и расчёта.")
+    target_weights: dict[str, float] = Field(
+        default_factory=dict, description="Целевые веса по тикерам после ребалансировки."
+    )
+    trades: list[RebalanceTrade] = Field(default_factory=list, description="Список предлагаемых сделок.")
+    summary: Optional[RebalanceSummary] = Field(default=None, description="Сводка по результату ребалансировки.")
+    error: Optional[ToolErrorModel] = Field(default=None, description="Информация об ошибке, если ребалансировка невозможна.")
+
+    @classmethod
+    def success(
+        cls,
+        *,
+        metadata: dict,
+        target_weights: dict[str, float],
+        trades: list[RebalanceTrade],
+        summary: RebalanceSummary,
+    ) -> "RebalanceOutput":
+        return cls(
+            metadata=metadata,
+            target_weights=target_weights,
+            trades=trades,
+            summary=summary,
+            error=None,
+        )
+
+    @classmethod
+    def from_error(cls, error: ToolErrorModel, metadata: Optional[dict] = None) -> "RebalanceOutput":
+        return cls(
+            metadata=metadata or {},
+            target_weights={},
+            trades=[],
+            summary=None,
+            error=error,
+        )
+
+
 __all__ = [
     "PortfolioAggregates",
     "PortfolioPosition",
@@ -584,4 +779,11 @@ __all__ = [
     "PeersFlag",
     "IssuerPeersCompareInput",
     "IssuerPeersCompareReport",
+    # Модели для suggest_rebalance
+    "RiskProfileTarget",
+    "RebalancePosition",
+    "RebalanceInput",
+    "RebalanceTrade",
+    "RebalanceSummary",
+    "RebalanceOutput",
 ]

@@ -1,15 +1,17 @@
 # Risk Analytics MCP Server
 
-MCP сервер для расчёта метрик риска портфелей и корреляционных матриц на основе данных MOEX.
+MCP сервер для расчёта метрик риска портфелей, ребалансировки и корреляционных матриц на основе данных MOEX.
 
 ## Описание
 
-Сервер предоставляет инструменты для анализа рисков портфелей, расчёта корреляций между инструментами и оценки стресс-сценариев.
+Сервер предоставляет инструменты для анализа рисков портфелей, ребалансировки, расчёта корреляций между инструментами и оценки стресс-сценариев.
 
 ## Возможности
 
 - **compute_portfolio_risk_basic** - расчёт базовых метрик риска портфеля
 - **compute_correlation_matrix** - вычисление матрицы корреляций доходностей
+- **issuer_peers_compare** - сравнение эмитента с пирами по мультипликаторам
+- **suggest_rebalance** - предложение по ребалансировке портфеля
 
 ## Требования
 
@@ -110,6 +112,65 @@ result = await compute_correlation_matrix(
     to_date="2024-12-31",
     ctx=ctx
 )
+```
+
+### `suggest_rebalance` - Предложить ребалансировку портфеля
+
+Формирует детерминированное предложение по ребалансировке с учётом ограничений по классам активов, концентрации и обороту.
+
+**Параметры:**
+- `positions` (list, обязательный) - Список текущих позиций портфеля с весами
+- `total_portfolio_value` (float, опциональный) - Общая стоимость портфеля для расчёта сделок в валюте
+- `risk_profile` (dict, опциональный) - Целевой профиль риска с ограничениями:
+  - `max_single_position_weight` - Максимальная доля одной позиции (по умолчанию: 0.25)
+  - `max_issuer_weight` - Максимальная доля одного эмитента (по умолчанию: 0.30)
+  - `max_turnover` - Максимальный оборот (по умолчанию: 0.50)
+  - `max_equity_weight` - Максимальная доля акций (по умолчанию: 1.0)
+  - `target_asset_class_weights` - Целевые веса по классам активов
+
+**Возвращает:**
+- Целевые веса по тикерам после ребалансировки
+- Список предлагаемых сделок (buy/sell) с оценкой стоимости
+- Сводку: оборот, количество изменённых позиций, устранённые нарушения
+
+**Пример:**
+```python
+result = await suggest_rebalance(
+    positions=[
+        {"ticker": "SBER", "current_weight": 0.45, "asset_class": "equity"},
+        {"ticker": "GAZP", "current_weight": 0.20, "asset_class": "equity"},
+        {"ticker": "LKOH", "current_weight": 0.15, "asset_class": "equity"},
+        {"ticker": "OFZ", "current_weight": 0.20, "asset_class": "fixed_income"}
+    ],
+    total_portfolio_value=5000000.0,
+    risk_profile={
+        "max_single_position_weight": 0.25,
+        "max_issuer_weight": 0.30,
+        "max_turnover": 0.30
+    },
+    ctx=ctx
+)
+```
+
+**Пример ответа:**
+```json
+{
+  "target_weights": {
+    "SBER": 0.25,
+    "GAZP": 0.25,
+    "LKOH": 0.25,
+    "OFZ": 0.25
+  },
+  "trades": [
+    {"ticker": "SBER", "side": "sell", "weight_delta": -0.20, "estimated_value": 1000000.0}
+  ],
+  "summary": {
+    "total_turnover": 0.20,
+    "turnover_within_limit": true,
+    "positions_changed": 4,
+    "concentration_issues_resolved": 1
+  }
+}
 ```
 
 ## Эндпоинты
