@@ -1,19 +1,20 @@
 ---
 id: TASK-2025-032
 title: "Фаза 3.5. Secret Manager и конфигурация"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 8h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
+updated: 2025-12-11
 parents: [TASK-2025-004]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: low
 benefit: "Гарантирует безопасное хранение секретов и понятную документацию по конфигурации."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-11, user: "@assistant", action: "marked as done"}
 ---
 
 ## Описание

@@ -1,19 +1,20 @@
 ---
 id: TASK-2025-029
 title: "Фаза 3.2. docker-compose для локальной разработки"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 8h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
+updated: 2025-12-11
 parents: [TASK-2025-004]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: low
 benefit: "Упрощает локальный запуск полного контура MCP+агент одной командой."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-11, user: "@assistant", action: "marked as done"}
 ---
 
 ## Описание

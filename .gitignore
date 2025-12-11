@@ -1,20 +1,39 @@
 # Byte-compiled / cache files
 __pycache__/
 *.py[cod]
+*.pyo
 
 # Virtual environments
 .venv/
+.env
 .env.*
+.uv/
+.python-version
 
 # Test / coverage artifacts
 .pytest_cache/
+.hypothesis/
 .coverage
+.coverage.*
 coverage.xml
+htmlcov/
+
+# Type check / lint caches
+.mypy_cache/
+.ruff_cache/
 
 # Build / packaging
 build/
 dist/
 *.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+uv.lock
+
+# Logs / local data
+*.log
+*.sqlite3
 
 # IDE / editor
 .DS_Store

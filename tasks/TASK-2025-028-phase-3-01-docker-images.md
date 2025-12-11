@@ -1,19 +1,20 @@
 ---
 id: TASK-2025-028
 title: "Фаза 3.1. Docker-образы MCP и агента"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 16h
 assignee: @unassigned
 created: 2025-12-09
-updated: 2025-12-09
+updated: 2025-12-11
 parents: [TASK-2025-004]
 arch_refs: [ARCH-agent-moex-market-analyst, ARCH-mcp-moex-iss]
 risk: medium
 benefit: "Подготавливает контейнерные образы MCP и агента для локального запуска и деплоя в Evolution AI Agents."
 audit_log:
   - {date: 2025-12-09, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-11, user: "@assistant", action: "marked as done"}
 ---
 
 ## Описание
