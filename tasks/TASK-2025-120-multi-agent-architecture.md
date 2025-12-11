@@ -1,11 +1,11 @@
 ---
 id: TASK-2025-120
 title: "Архитектура мультиагентности (BaseSubagent, Context, Registry)"
-status: planned
+status: done
 priority: critical
 type: feature
 estimate: 16h
-assignee: @unassigned
+assignee: @AI-Codex
 created: 2025-12-12
 updated: 2025-12-12
 parents: []
@@ -16,6 +16,7 @@ benefit: "Создаёт фундамент мультиагентной сис�
 supersedes: [TASK-2025-003, TASK-2025-046, TASK-2025-104]
 audit_log:
   - {date: 2025-12-12, user: "@AI-Codex", action: "created as critical P0 task for multi-agent MVP"}
+  - {date: 2025-12-12, user: "@AI-Codex", action: "implemented BaseSubagent, AgentContext, SubagentResult, SubagentRegistry with 63 passing tests"}
 ---
 
 ## Описание
@@ -36,11 +37,11 @@ audit_log:
 
 ## Критерии приёмки
 
-- [ ] Реализован абстрактный класс `BaseSubagent` с методами:
+- [x] Реализован абстрактный класс `BaseSubagent` с методами:
   - `async def execute(self, context: AgentContext) -> SubagentResult`
   - `@property def name(self) -> str`
   - `@property def capabilities(self) -> list[str]`
-- [ ] Реализована Pydantic-модель `AgentContext`:
+- [x] Реализована Pydantic-модель `AgentContext`:
   - `user_query: str`
   - `session_id: str`
   - `user_role: Optional[str]` (CFO, риск-менеджер, аналитик)
@@ -48,17 +49,17 @@ audit_log:
   - `intermediate_results: dict[str, Any]`
   - `errors: list[str]`
   - `metadata: dict`
-- [ ] Реализована модель `SubagentResult`:
+- [x] Реализована модель `SubagentResult`:
   - `status: Literal["success", "error", "partial"]`
   - `data: Optional[Any]`
-  - `error: Optional[str]`
+  - `error_message: Optional[str]` (переименовано из `error` для избежания конфликта с методом)
   - `next_agent_hint: Optional[str]`
-- [ ] Реализован `SubagentRegistry` (singleton или инжектируемый):
+- [x] Реализован `SubagentRegistry` (singleton или инжектируемый):
   - `register(subagent: BaseSubagent)`
   - `get(name: str) -> Optional[BaseSubagent]`
   - `list_available() -> list[str]`
-- [ ] Написаны unit-тесты для `AgentContext`, `SubagentResult`, `SubagentRegistry`
-- [ ] Модули размещены в `packages/agent-service/src/agent_service/core/`
+- [x] Написаны unit-тесты для `AgentContext`, `SubagentResult`, `SubagentRegistry` (63 теста)
+- [x] Модули размещены в `packages/agent-service/src/agent_service/core/`
 
 ## Определение готовности
 
