@@ -14,6 +14,12 @@
       "description": "Build a correlation matrix of daily returns for the provided tickers and date range.",
       "input_schema": { "$ref": "../docs/schemas/compute_correlation_matrix_input.json" },
       "output_schema": { "$ref": "../docs/schemas/compute_correlation_matrix_output.json" }
+    },
+    {
+      "name": "issuer_peers_compare",
+      "description": "Compare an issuer against peers using key fundamental and market metrics. Returns base issuer metrics, peer list with comparable data, ranking by P/E, EV/EBITDA, ROE, Debt/EBITDA, dividend yield, and heuristic flags (overvalued/undervalued, high_leverage, etc.).",
+      "input_schema": { "$ref": "../docs/schemas/issuer_peers_compare_input.json" },
+      "output_schema": { "$ref": "../docs/schemas/issuer_peers_compare_output.json" }
     }
   ]
 }

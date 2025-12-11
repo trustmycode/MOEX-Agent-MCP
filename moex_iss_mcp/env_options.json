@@ -1,0 +1,44 @@
+{
+  "rawEnvs": {
+    "PORT": {
+      "isRequired": false,
+      "description": "Порт MCP сервера",
+      "defaultValue": "8000"
+    },
+    "HOST": {
+      "isRequired": false,
+      "description": "Хост MCP сервера",
+      "defaultValue": "0.0.0.0"
+    },
+    "MOEX_ISS_BASE_URL": {
+      "isRequired": false,
+      "description": "Базовый URL MOEX ISS API",
+      "defaultValue": "https://iss.moex.com/iss"
+    },
+    "MOEX_ISS_RATE_LIMIT_RPS": {
+      "isRequired": false,
+      "description": "Лимит запросов к MOEX ISS (запросов в секунду)",
+      "defaultValue": "3.0"
+    },
+    "MOEX_ISS_TIMEOUT_SECONDS": {
+      "isRequired": false,
+      "description": "Таймаут запросов к MOEX ISS (секунды)",
+      "defaultValue": "10.0"
+    },
+    "ENABLE_MONITORING": {
+      "isRequired": false,
+      "description": "Включить мониторинг (Prometheus метрики)",
+      "defaultValue": "false"
+    },
+    "OTEL_ENDPOINT": {
+      "isRequired": false,
+      "description": "OpenTelemetry endpoint для экспорта трейсов"
+    },
+    "OTEL_SERVICE_NAME": {
+      "isRequired": false,
+      "description": "Имя сервиса для OpenTelemetry"
+    }
+  },
+  "secretEnvs": {}
+}
+

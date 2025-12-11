@@ -1,0 +1,67 @@
+# Конфигурация MCP сервера moex-iss-mcp
+id: "moex-iss-mcp"
+name: "MOEX ISS MCP Server"
+description: |
+  MCP сервер для предоставления данных Московской биржи (MOEX) через протокол MCP.
+  Предоставляет доступ к данным MOEX через информационную систему ISS (Information & Statistics Server).
+
+tools:
+  - name: "get_security_snapshot"
+    description: "Получить краткий снимок инструмента (последняя цена, изменение, ликвидность)"
+    parameters:
+      ticker: "string - Тикер бумаги, например 'SBER'"
+      board: "string - Борд MOEX, например 'TQBR' (по умолчанию 'TQBR')"
+
+  - name: "get_ohlcv_timeseries"
+    description: "Получить временной ряд OHLCV с расчётом метрик"
+    parameters:
+      ticker: "string - Тикер бумаги, например 'SBER'"
+      board: "string - Борд MOEX, например 'TQBR' (по умолчанию 'TQBR')"
+      from_date: "string - Начальная дата периода в формате YYYY-MM-DD"
+      to_date: "string - Конечная дата периода в формате YYYY-MM-DD"
+      interval: "string - Интервал агрегации: '1d' (дневной) или '1h' (часовой)"
+
+  - name: "get_index_constituents_metrics"
+    description: "Получить метрики компонентов индекса"
+    parameters:
+      index_ticker: "string - Тикер индекса, например 'IMOEX' или 'RTSI'"
+      as_of_date: "string - Дата, на которую получить состав индекса в формате YYYY-MM-DD"
+
+rawEnvs:
+  PORT:
+    isRequired: false
+    description: "Порт MCP сервера"
+  HOST:
+    isRequired: false
+    description: "Хост MCP сервера"
+  MOEX_ISS_BASE_URL:
+    isRequired: false
+    description: "Базовый URL MOEX ISS API"
+  MOEX_ISS_RATE_LIMIT_RPS:
+    isRequired: false
+    description: "Лимит запросов к MOEX ISS (запросов в секунду)"
+  MOEX_ISS_TIMEOUT_SECONDS:
+    isRequired: false
+    description: "Таймаут запросов к MOEX ISS (секунды)"
+  ENABLE_MONITORING:
+    isRequired: false
+    description: "Включить мониторинг (Prometheus метрики)"
+  OTEL_ENDPOINT:
+    isRequired: false
+    description: "OpenTelemetry endpoint для экспорта трейсов"
+  OTEL_SERVICE_NAME:
+    isRequired: false
+    description: "Имя сервиса для OpenTelemetry"
+
+secretEnvs: {}
+
+image_uri: ${IMAGE_URI}
+license_url: "https://example.com/license"
+tags: ["moex", "iss", "market-data", "russia"]
+category: "Market Data"
+versions: ["1.0.0"]
+exposed_ports:
+  - port: 8000
+    protocol: "HTTP"
+status: "MCP_SERVER_PREDEFINED_STATUS_AVAILABLE"
+type: "MCP_SERVER_PREDEFINED_TYPE_INTERNAL"

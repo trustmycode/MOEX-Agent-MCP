@@ -19,6 +19,7 @@ from .returns import (
     compute_daily_returns,
     normalize_weights,
 )
+from .peers import build_peer_metrics, compute_metric_ranks, derive_flags, has_meaningful_metrics, METRIC_PREFERENCES
 from .stress_var import (
     DEFAULT_FALLBACK_VOLATILITY_PCT,
     DEFAULT_SCENARIOS,
@@ -45,4 +46,9 @@ __all__ = [
     "DEFAULT_SCENARIOS",
     "run_stress_scenarios",
     "compute_var_light",
+    "build_peer_metrics",
+    "compute_metric_ranks",
+    "derive_flags",
+    "has_meaningful_metrics",
+    "METRIC_PREFERENCES",
 ]

@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-074
 title: "Фаза 0.5. Вынесение IssClient из moex-iss-mcp в moex_iss_sdk"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 16h

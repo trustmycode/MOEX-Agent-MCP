@@ -329,6 +329,8 @@ class IssuerFundamentals(BaseModel):
     ticker: str = Field(min_length=1, max_length=32, description="Ticker, e.g. SBER.")
     isin: Optional[str] = Field(default=None, description="ISIN код бумаги, если доступен.")
     issuer_name: Optional[str] = Field(default=None, description="Название эмитента по данным MOEX.")
+    sector: Optional[str] = Field(default=None, description="Сектор/отрасль эмитента, если доступен.")
+    industry: Optional[str] = Field(default=None, description="Подотрасль/индустрия, если доступна.")
     reporting_currency: Optional[str] = Field(
         default="RUB",
         description="Валюта отчётности/метрик (для MVP обычно RUB).",
@@ -336,6 +338,10 @@ class IssuerFundamentals(BaseModel):
     as_of: Optional[datetime] = Field(
         default=None,
         description="Момент времени, на который актуальны рыночные метрики.",
+    )
+    total_equity: Optional[float] = Field(
+        default=None,
+        description="Собственный капитал акционеров для расчёта ROE.",
     )
 
     # Базовые отчётные показатели (последний период)
@@ -391,6 +397,174 @@ class IssuerFundamentals(BaseModel):
         return normalized or None
 
 
+class IssuerPeersComparePeer(BaseModel):
+    """
+    Сводные метрики по эмитенту для сравнительного анализа с пирами.
+    """
+
+    ticker: str = Field(min_length=1, max_length=32, description="Ticker, e.g. SBER.")
+    isin: Optional[str] = Field(default=None, description="ISIN код бумаги, если доступен.")
+    issuer_name: Optional[str] = Field(default=None, description="Название эмитента.")
+    sector: Optional[str] = Field(default=None, description="Сектор/отрасль, если доступен.")
+    as_of: Optional[datetime] = Field(default=None, description="Время среза рыночных метрик.")
+    price: Optional[float] = Field(default=None, description="Текущая рыночная цена.")
+    shares_outstanding: Optional[float] = Field(default=None, description="Количество акций в обращении.")
+    market_cap: Optional[float] = Field(default=None, description="Рыночная капитализация.")
+    enterprise_value: Optional[float] = Field(default=None, description="Enterprise Value.")
+    net_debt: Optional[float] = Field(default=None, description="Чистый долг.")
+    ebitda: Optional[float] = Field(default=None, description="EBITDA за последний период.")
+    net_income: Optional[float] = Field(default=None, description="Чистая прибыль за период.")
+    pe_ratio: Optional[float] = Field(default=None, description="P/E мультипликатор.")
+    ev_to_ebitda: Optional[float] = Field(default=None, description="EV/EBITDA.")
+    debt_to_ebitda: Optional[float] = Field(default=None, description="NetDebt/EBITDA.")
+    roe_pct: Optional[float] = Field(default=None, description="ROE, %.")
+    dividend_yield_pct: Optional[float] = Field(default=None, description="Дивидендная доходность, %.")  # noqa: E501
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        normalized = (value or "").strip().upper()
+        if not normalized:
+            raise ValueError("ticker cannot be empty")
+        return normalized
+
+    @field_validator("sector")
+    @classmethod
+    def normalize_sector(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+
+class MetricRank(BaseModel):
+    """
+    Ранжирование базового эмитента по выбранной метрике среди пиров.
+    """
+
+    metric: str = Field(description="Имя метрики (pe_ratio, ev_to_ebitda, roe_pct, debt_to_ebitda, dividend_yield_pct).")  # noqa: E501
+    value: Optional[float] = Field(default=None, description="Значение метрики у базового эмитента.")
+    rank: Optional[int] = Field(default=None, ge=1, description="Позиция эмитента среди пиров (1 — лучшая).")
+    total: int = Field(ge=0, description="Количество эмитентов, участвующих в ранжировании.")
+    percentile: Optional[float] = Field(default=None, ge=0, le=1, description="Перцентиль базового эмитента по метрике.")  # noqa: E501
+
+
+class PeersFlag(BaseModel):
+    """
+    Эвристические флаги по итогам сравнения с пирами.
+    """
+
+    code: str = Field(description="Код флага (OVERVALUED, UNDERVALUED, HIGH_LEVERAGE и т.п.).")
+    severity: Literal["low", "medium", "high"] = Field(description="Уровень значимости флага.")
+    message: str = Field(description="Человекочитаемое описание вывода.")
+    metric: Optional[str] = Field(default=None, description="Метрика, на основе которой поставлен флаг.")
+
+
+class IssuerPeersCompareInput(BaseModel):
+    """
+    Входные параметры инструмента issuer_peers_compare.
+    """
+
+    ticker: Optional[str] = Field(default=None, description="Ticker (предпочтительный идентификатор).")
+    isin: Optional[str] = Field(default=None, description="ISIN, если тикер не указан.")
+    issuer_id: Optional[str] = Field(default=None, description="MOEX issuer id, если доступен.")
+    index_ticker: Optional[str] = Field(default="IMOEX", description="Индекс, в составе которого подбираются пиры.")
+    sector: Optional[str] = Field(default=None, description="Фильтр по сектору/отрасли (опционально).")
+    peer_tickers: Optional[list[str]] = Field(default=None, description="Явный список тикеров-пиров (если задан, перекрывает index_ticker).")  # noqa: E501
+    max_peers: int = Field(default=10, ge=1, le=100, description="Максимальное количество пиров в отчёте.")
+    as_of_date: Optional[date] = Field(default=None, description="Дата для среза данных (по умолчанию — сегодня).")
+
+    @model_validator(mode="after")
+    def ensure_identifier(self) -> "IssuerPeersCompareInput":
+        if not (self.ticker or self.isin or self.issuer_id):
+            raise ValueError("One of ticker/isin/issuer_id must be provided")
+        return self
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+    @field_validator("index_ticker")
+    @classmethod
+    def normalize_index(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+    @field_validator("sector")
+    @classmethod
+    def normalize_sector(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+    @field_validator("peer_tickers")
+    @classmethod
+    def normalize_peers(cls, tickers: Optional[list[str]]) -> Optional[list[str]]:
+        if tickers is None:
+            return None
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for ticker in tickers:
+            value = (ticker or "").strip().upper()
+            if not value:
+                continue
+            if value in seen:
+                continue
+            normalized.append(value)
+            seen.add(value)
+        return normalized or None
+
+
+class IssuerPeersCompareReport(BaseModel):
+    """
+    Выход инструмента issuer_peers_compare: базовый эмитент, список пиров, ранжирование и флаги.
+    """
+
+    metadata: dict = Field(default_factory=dict, description="Метаданные запроса и применённые фильтры.")
+    base_issuer: Optional[IssuerPeersComparePeer] = Field(default=None, description="Агрегированные метрики базового эмитента.")  # noqa: E501
+    peers: list[IssuerPeersComparePeer] = Field(default_factory=list, description="Пиры с тем же набором метрик.")
+    ranking: list[MetricRank] = Field(default_factory=list, description="Ранжирование базового эмитента по ключевым метрикам.")  # noqa: E501
+    flags: list[PeersFlag] = Field(default_factory=list, description="Эвристические флаги по итогам сравнения.")
+    error: Optional[ToolErrorModel] = Field(default=None, description="Информация об ошибке, если сравнение не удалось.")
+
+    @classmethod
+    def success(
+        cls,
+        *,
+        metadata: dict,
+        base_issuer: IssuerPeersComparePeer,
+        peers: list[IssuerPeersComparePeer],
+        ranking: list[MetricRank],
+        flags: list[PeersFlag],
+    ) -> "IssuerPeersCompareReport":
+        return cls(
+            metadata=metadata,
+            base_issuer=base_issuer,
+            peers=peers,
+            ranking=ranking,
+            flags=flags,
+            error=None,
+        )
+
+    @classmethod
+    def from_error(cls, error: ToolErrorModel, metadata: Optional[dict] = None) -> "IssuerPeersCompareReport":
+        return cls(
+            metadata=metadata or {},
+            base_issuer=None,
+            peers=[],
+            ranking=[],
+            flags=[],
+            error=error,
+        )
+
+
 __all__ = [
     "PortfolioAggregates",
     "PortfolioPosition",
@@ -405,4 +579,9 @@ __all__ = [
     "VarLightConfig",
     "VarLightResult",
     "IssuerFundamentals",
+    "IssuerPeersComparePeer",
+    "MetricRank",
+    "PeersFlag",
+    "IssuerPeersCompareInput",
+    "IssuerPeersCompareReport",
 ]

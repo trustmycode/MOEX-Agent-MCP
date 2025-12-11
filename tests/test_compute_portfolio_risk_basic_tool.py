@@ -4,8 +4,9 @@ from types import SimpleNamespace
 import pytest
 
 from risk_analytics_mcp.models import PortfolioRiskInput, PortfolioPosition
-from risk_analytics_mcp.tools import compute_portfolio_risk_basic_core, compute_portfolio_risk_basic_tool
+from risk_analytics_mcp.tools import compute_portfolio_risk_basic_core
 from moex_iss_sdk.models import OhlcvBar
+from moex_iss_sdk.exceptions import TooManyTickersError, DateRangeTooLargeError
 
 
 class StubIssClient:
@@ -49,13 +50,12 @@ def test_compute_portfolio_risk_basic_tool_limits_error():
         "to_date": "2024-01-10",
     }
 
-    result = compute_portfolio_risk_basic_tool(payload, iss, max_tickers=1, max_lookback_days=5)
-
-    assert result["error"]["error_type"] == "TOO_MANY_TICKERS"
+    with pytest.raises(TooManyTickersError):
+        compute_portfolio_risk_basic_core(payload, iss, max_tickers=1, max_lookback_days=5)
 
     long_range = {**payload, "to_date": "2024-02-15"}
-    result_range = compute_portfolio_risk_basic_tool(long_range, iss, max_tickers=5, max_lookback_days=10)
-    assert result_range["error"]["error_type"] == "DATE_RANGE_TOO_LARGE"
+    with pytest.raises(DateRangeTooLargeError):
+        compute_portfolio_risk_basic_core(long_range, iss, max_tickers=5, max_lookback_days=10)
 
 
 def test_compute_portfolio_risk_basic_uses_custom_board(monkeypatch):
@@ -80,8 +80,8 @@ def test_compute_portfolio_risk_basic_uses_custom_board(monkeypatch):
         "to_date": "2024-01-02",
     }
 
-    result = compute_portfolio_risk_basic_tool(payload, iss, max_tickers=5, max_lookback_days=10)
-    assert result["error"] is None
+    result = compute_portfolio_risk_basic_core(payload, iss, max_tickers=5, max_lookback_days=10)
+    assert result.error is None
     assert captured["board"] == "TQTF"
     assert captured["ticker"] == "AAA"
 
@@ -95,5 +95,5 @@ def test_compute_portfolio_risk_basic_invalid_rebalance():
         "rebalance": "weekly",
     }
 
-    result = compute_portfolio_risk_basic_tool(payload, iss, max_tickers=5, max_lookback_days=10)
-    assert result["error"]["error_type"] == "VALIDATION_ERROR"
+    with pytest.raises(Exception):
+        compute_portfolio_risk_basic_core(payload, iss, max_tickers=5, max_lookback_days=10)

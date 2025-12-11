@@ -1,0 +1,72 @@
+{
+  "rawEnvs": {
+    "RISK_MCP_PORT": {
+      "isRequired": false,
+      "description": "Порт MCP сервера риск-аналитики",
+      "defaultValue": "8010"
+    },
+    "PORT": {
+      "isRequired": false,
+      "description": "Общий порт (используется, если RISK_MCP_PORT не задан)",
+      "defaultValue": "8010"
+    },
+    "RISK_MCP_HOST": {
+      "isRequired": false,
+      "description": "Хост MCP сервера риск-аналитики",
+      "defaultValue": "0.0.0.0"
+    },
+    "HOST": {
+      "isRequired": false,
+      "description": "Общий хост (используется, если RISK_MCP_HOST не задан)",
+      "defaultValue": "0.0.0.0"
+    },
+    "RISK_MAX_PORTFOLIO_TICKERS": {
+      "isRequired": false,
+      "description": "Максимальное количество тикеров в портфеле",
+      "defaultValue": "50"
+    },
+    "RISK_MAX_CORRELATION_TICKERS": {
+      "isRequired": false,
+      "description": "Максимальное количество тикеров для корреляционной матрицы",
+      "defaultValue": "20"
+    },
+    "RISK_MAX_LOOKBACK_DAYS": {
+      "isRequired": false,
+      "description": "Максимальный период истории в днях",
+      "defaultValue": "365"
+    },
+    "MOEX_ISS_MAX_LOOKBACK_DAYS": {
+      "isRequired": false,
+      "description": "Общий максимальный период истории (используется, если RISK_MAX_LOOKBACK_DAYS не задан)"
+    },
+    "RISK_ENABLE_MONITORING": {
+      "isRequired": false,
+      "description": "Включить мониторинг (Prometheus метрики)",
+      "defaultValue": "false"
+    },
+    "ENABLE_MONITORING": {
+      "isRequired": false,
+      "description": "Общий флаг мониторинга (используется, если RISK_ENABLE_MONITORING не задан)",
+      "defaultValue": "false"
+    },
+    "RISK_OTEL_ENDPOINT": {
+      "isRequired": false,
+      "description": "OpenTelemetry endpoint для экспорта трейсов"
+    },
+    "OTEL_ENDPOINT": {
+      "isRequired": false,
+      "description": "Общий OpenTelemetry endpoint (используется, если RISK_OTEL_ENDPOINT не задан)"
+    },
+    "RISK_OTEL_SERVICE_NAME": {
+      "isRequired": false,
+      "description": "Имя сервиса для OpenTelemetry",
+      "defaultValue": "risk-analytics-mcp"
+    },
+    "OTEL_SERVICE_NAME": {
+      "isRequired": false,
+      "description": "Общее имя сервиса (используется, если RISK_OTEL_SERVICE_NAME не задан)"
+    }
+  },
+  "secretEnvs": {}
+}
+

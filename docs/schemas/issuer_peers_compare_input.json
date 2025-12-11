@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IssuerPeersCompareInput",
+  "description": "Input schema for risk-analytics-mcp.issuer_peers_compare tool. Compares an issuer against peers using key fundamental and market metrics.",
+  "type": "object",
+  "properties": {
+    "ticker": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Target issuer ticker (preferred identifier), e.g. 'SBER'."
+    },
+    "isin": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 20,
+      "description": "ISIN identifier (used if ticker is not provided)."
+    },
+    "issuer_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "MOEX issuer id (optional, used if ticker/ISIN not available)."
+    },
+    "index_ticker": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 16,
+      "default": "IMOEX",
+      "description": "Index used to pick peers (e.g. 'IMOEX', 'RTSI'). Ignored if peer_tickers is provided."
+    },
+    "sector": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Optional sector filter to narrow peer selection (e.g. 'FINANCIALS')."
+    },
+    "peer_tickers": {
+      "type": ["array", "null"],
+      "description": "Explicit list of peer tickers (overrides index-based lookup).",
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 },
+      "minItems": 1,
+      "maxItems": 100
+    },
+    "max_peers": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Maximum number of peers to include in the report."
+    },
+    "as_of_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Date for data snapshot in ISO format (YYYY-MM-DD). Defaults to today."
+    }
+  },
+  "additionalProperties": false,
+  "_validation_notes": "At least one of ticker/isin/issuer_id must be provided (validated at Pydantic level)."
+}

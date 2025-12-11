@@ -1,4 +1,6 @@
 import os
+import asyncio
+import inspect
 import pytest
 from datetime import datetime, timezone
 from starlette.testclient import TestClient
@@ -46,11 +48,26 @@ def _bar(day: int, close: float) -> OhlcvBar:
         close=close,
     )
 
+def run_tool(tool, **kwargs):
+    signature = inspect.signature(tool.fn)
+    for param in ("aggregates", "stress_scenarios", "var_config", "ctx"):
+        if param in signature.parameters and param not in kwargs:
+            kwargs[param] = None
+    if "rebalance" in signature.parameters and "rebalance" not in kwargs:
+        kwargs["rebalance"] = "buy_and_hold"
+    result = asyncio.run(tool.fn(**kwargs))
+    return result.structured_content
+
+
+def extract_structured(body: dict):
+    structured = body["result"]["structuredContent"]
+    return structured.get("structured_content", structured)
+
 
 def test_compute_portfolio_risk_basic_returns_metrics(monkeypatch):
     cfg = RiskMcpConfig(max_portfolio_tickers=3, max_lookback_days=30, enable_monitoring=True)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_portfolio_risk_basic"].func
+    tool = server.fastmcp._tool_manager._tools["compute_portfolio_risk_basic"]
 
     def fake_ohlcv(ticker: str, board: str, from_date, to_date, interval: str, max_lookback_days: int):
         base = 100.0 if ticker == "SBER" else 50.0
@@ -58,7 +75,8 @@ def test_compute_portfolio_risk_basic_returns_metrics(monkeypatch):
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", fake_ohlcv)
 
-    payload = fn(
+    payload = run_tool(
+        tool,
         positions=[{"ticker": "SBER", "weight": 0.6}, {"ticker": "GAZP", "weight": 0.4}],
         from_date="2024-01-01",
         to_date="2024-01-03",
@@ -66,9 +84,11 @@ def test_compute_portfolio_risk_basic_returns_metrics(monkeypatch):
     )
 
     assert payload["error"] is None
-    assert len(payload["per_instrument"]) == 2
-    assert payload["portfolio_metrics"]["total_return_pct"] is not None
-    assert payload["concentration_metrics"]["top1_weight_pct"] == pytest.approx(60.0)
+    data = payload["data"]
+    assert data is not None
+    assert len(data["per_instrument"]) == 2
+    assert data["portfolio_metrics"]["total_return_pct"] is not None
+    assert data["concentration_metrics"]["top1_weight_pct"] == pytest.approx(60.0)
     assert payload["metadata"]["rebalance"] == "buy_and_hold"
 
     metrics_text, _ = server.metrics.render()
@@ -78,14 +98,15 @@ def test_compute_portfolio_risk_basic_returns_metrics(monkeypatch):
 def test_compute_portfolio_risk_basic_maps_errors(monkeypatch):
     cfg = RiskMcpConfig(enable_monitoring=True)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_portfolio_risk_basic"].func
+    tool = server.fastmcp._tool_manager._tools["compute_portfolio_risk_basic"]
 
     def boom(*args, **kwargs):
         raise InvalidTickerError("bad ticker")
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", boom)
 
-    payload = fn(
+    payload = run_tool(
+        tool,
         positions=[{"ticker": "BAD", "weight": 1.0}],
         from_date="2024-01-01",
         to_date="2024-01-05",
@@ -99,7 +120,7 @@ def test_compute_portfolio_risk_basic_maps_errors(monkeypatch):
 def test_compute_portfolio_risk_basic_accepts_extended_fields(monkeypatch):
     cfg = RiskMcpConfig(max_portfolio_tickers=3, max_lookback_days=30)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_portfolio_risk_basic"].func
+    tool = server.fastmcp._tool_manager._tools["compute_portfolio_risk_basic"]
 
     def fake_ohlcv(ticker: str, board: str, from_date, to_date, interval: str, max_lookback_days: int):
         base = 100.0 if ticker == "AAA" else 200.0
@@ -107,7 +128,8 @@ def test_compute_portfolio_risk_basic_accepts_extended_fields(monkeypatch):
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", fake_ohlcv)
 
-    payload = fn(
+    payload = run_tool(
+        tool,
         positions=[{"ticker": "AAA", "weight": 0.5}, {"ticker": "BBB", "weight": 0.5}],
         from_date="2024-01-01",
         to_date="2024-01-03",
@@ -117,12 +139,16 @@ def test_compute_portfolio_risk_basic_accepts_extended_fields(monkeypatch):
     )
 
     assert payload["error"] is None
-    assert {item["id"] for item in payload["stress_results"]} == {"equity_-10_fx_+20", "rates_+300bp"}
-    assert payload["var_light"] is not None
+    data = payload["data"]
+    assert data is not None
+    assert {item["id"] for item in data["stress_results"]} == {"equity_-10_fx_+20", "rates_+300bp"}
+    assert data["var_light"] is not None
+
+
 def test_compute_correlation_matrix_success(monkeypatch):
     cfg = RiskMcpConfig(max_correlation_tickers=3, max_lookback_days=30, enable_monitoring=True)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
     def fake_ohlcv(ticker: str, board: str, from_date, to_date, interval: str, max_lookback_days: int):
         base = 100.0 if ticker == "AAA" else 50.0
@@ -130,12 +156,14 @@ def test_compute_correlation_matrix_success(monkeypatch):
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", fake_ohlcv)
 
-    payload = fn(tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-03")
+    payload = run_tool(tool, tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-03")
 
     assert payload["error"] is None
-    assert payload["tickers"] == ["AAA", "BBB"]
+    data = payload["data"]
+    assert data is not None
+    assert data["tickers"] == ["AAA", "BBB"]
     assert payload["metadata"]["num_observations"] == 2
-    matrix = payload["matrix"]
+    matrix = data["matrix"]
     assert len(matrix) == 2 and all(len(row) == 2 for row in matrix)
     assert matrix[0][0] == pytest.approx(1.0)
     assert matrix[0][1] == pytest.approx(matrix[1][0])
@@ -144,24 +172,26 @@ def test_compute_correlation_matrix_success(monkeypatch):
 def test_compute_correlation_matrix_enforces_ticker_limit():
     cfg = RiskMcpConfig(max_correlation_tickers=1, max_lookback_days=5)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
-    payload = fn(tickers=["A", "B"], from_date="2024-01-01", to_date="2024-01-02")
+    payload = run_tool(tool, tickers=["A", "B"], from_date="2024-01-01", to_date="2024-01-02")
+    data = payload["data"] or {}
     assert payload["error"]["error_type"] == "TOO_MANY_TICKERS"
-    assert payload["matrix"] == []
+    assert data.get("matrix", []) == []
 
 
 def test_compute_correlation_matrix_maps_sdk_errors(monkeypatch):
     cfg = RiskMcpConfig(max_correlation_tickers=3, enable_monitoring=True)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
     def boom(*args, **kwargs):
         raise InvalidTickerError("bad ticker")
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", boom)
 
-    payload = fn(tickers=["BAD", "OK"], from_date="2024-01-01", to_date="2024-01-05")
+    payload = run_tool(tool, tickers=["BAD", "OK"], from_date="2024-01-01", to_date="2024-01-05")
+    data = payload["data"] or {}
 
     assert payload["error"]["error_type"] == "INVALID_TICKER"
     metrics_text, _ = server.metrics.render()
@@ -171,51 +201,55 @@ def test_compute_correlation_matrix_maps_sdk_errors(monkeypatch):
 def test_compute_correlation_matrix_handles_insufficient_data(monkeypatch):
     cfg = RiskMcpConfig(max_correlation_tickers=2, max_lookback_days=30)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
     def short_series(*args, **kwargs):
         return [_bar(1, 100.0)]
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", short_series)
 
-    payload = fn(tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-05")
+    payload = run_tool(tool, tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-05")
+    data = payload["data"] or {}
     assert payload["error"]["error_type"] == "INSUFFICIENT_DATA"
-    assert payload["matrix"] == []
+    assert data.get("matrix", []) == []
 
 
 def test_compute_correlation_matrix_rejects_invalid_date_order():
     cfg = RiskMcpConfig(max_correlation_tickers=2)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
-    payload = fn(tickers=["AAA", "BBB"], from_date="2024-02-10", to_date="2024-02-01")
+    payload = run_tool(tool, tickers=["AAA", "BBB"], from_date="2024-02-10", to_date="2024-02-01")
+    data = payload["data"] or {}
     assert payload["error"]["error_type"] == "VALIDATION_ERROR"
-    assert payload["matrix"] == []
+    assert data.get("matrix", []) == []
 
 
 def test_compute_correlation_matrix_rejects_date_range_too_large():
     cfg = RiskMcpConfig(max_correlation_tickers=2, max_lookback_days=2)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
-    payload = fn(tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-10")
+    payload = run_tool(tool, tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-10")
+    data = payload["data"] or {}
     assert payload["error"]["error_type"] == "DATE_RANGE_TOO_LARGE"
-    assert payload["matrix"] == []
+    assert data.get("matrix", []) == []
 
 
 def test_compute_correlation_matrix_zero_variance(monkeypatch):
     cfg = RiskMcpConfig(max_correlation_tickers=2)
     server = RiskMcpServer(cfg)
-    fn = server.fastmcp._tools["compute_correlation_matrix"].func
+    tool = server.fastmcp._tool_manager._tools["compute_correlation_matrix"]
 
     def flat_series(*args, **kwargs):
         return [_bar(1, 100.0), _bar(2, 100.0), _bar(3, 100.0)]
 
     monkeypatch.setattr(server.iss_client, "get_ohlcv_series", flat_series)
 
-    payload = fn(tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-05")
+    payload = run_tool(tool, tickers=["AAA", "BBB"], from_date="2024-01-01", to_date="2024-01-05")
+    data = payload["data"] or {}
     assert payload["error"]["error_type"] == "INSUFFICIENT_DATA"
-    assert payload["matrix"] == []
+    assert data.get("matrix", []) == []
 
 
 def test_http_streamable_accepts_extended_portfolio_payload(monkeypatch):
@@ -259,11 +293,11 @@ def test_http_streamable_accepts_extended_portfolio_payload(monkeypatch):
             json=payload,
         )
         assert resp.status_code == 200
-        body = resp.json()
-        structured = body["result"]["structuredContent"]
+        structured = extract_structured(resp.json())
+        data = structured["data"]
         assert structured["error"] is None
-        assert {item["id"] for item in structured["stress_results"]} == {"equity_-10_fx_+20", "rates_+300bp"}
-        assert structured["var_light"] is not None
+        assert {item["id"] for item in data["stress_results"]} == {"equity_-10_fx_+20", "rates_+300bp"}
+        assert data["var_light"] is not None
 
 
 def test_stateful_session_handshake_and_call(monkeypatch):
@@ -309,9 +343,10 @@ def test_stateful_session_handshake_and_call(monkeypatch):
             json=call_payload,
         )
         assert call_resp.status_code == 200
-        structured = call_resp.json()["result"]["structuredContent"]
+        structured = extract_structured(call_resp.json())
+        data = structured["data"]
         assert structured["error"] is None
-        assert structured["stress_results"]
+        assert data["stress_results"]
 
 
 def test_invalid_fields_return_validation_error(monkeypatch):
@@ -343,7 +378,7 @@ def test_invalid_fields_return_validation_error(monkeypatch):
     with TestClient(app) as client:
         resp = client.post("/mcp", headers={"Content-Type": "application/json", "Accept": "application/json"}, json=payload)
         assert resp.status_code == 200
-        result = resp.json()["result"]["structuredContent"]
+        result = extract_structured(resp.json())
         assert result["error"]["error_type"] == "VALIDATION_ERROR"
 
 
@@ -387,11 +422,11 @@ def test_limits_enforced_via_http(monkeypatch):
     with TestClient(app) as client:
         resp_many = client.post("/mcp", headers={"Content-Type": "application/json", "Accept": "application/json"}, json=too_many_payload)
         assert resp_many.status_code == 200
-        assert resp_many.json()["result"]["structuredContent"]["error"]["error_type"] == "TOO_MANY_TICKERS"
+        assert extract_structured(resp_many.json())["error"]["error_type"] == "TOO_MANY_TICKERS"
 
         resp_range = client.post("/mcp", headers={"Content-Type": "application/json", "Accept": "application/json"}, json=too_long_payload)
         assert resp_range.status_code == 200
-        assert resp_range.json()["result"]["structuredContent"]["error"]["error_type"] == "DATE_RANGE_TOO_LARGE"
+        assert extract_structured(resp_range.json())["error"]["error_type"] == "DATE_RANGE_TOO_LARGE"
 
 
 def test_default_aggregates_and_stress_scenarios(monkeypatch):
@@ -421,9 +456,10 @@ def test_default_aggregates_and_stress_scenarios(monkeypatch):
     with TestClient(app) as client:
         resp = client.post("/mcp", headers={"Content-Type": "application/json", "Accept": "application/json"}, json=payload)
         assert resp.status_code == 200
-        structured = resp.json()["result"]["structuredContent"]
+        structured = extract_structured(resp.json())
+        data = structured["data"]
         assert structured["error"] is None
-        assert structured["stress_results"]  # defaults applied
+        assert data["stress_results"]  # defaults applied
 
 
 def test_http_stress_credit_and_rates_with_duration(monkeypatch):
@@ -459,9 +495,10 @@ def test_http_stress_credit_and_rates_with_duration(monkeypatch):
     with TestClient(app) as client:
         resp = client.post("/mcp", headers={"Content-Type": "application/json", "Accept": "application/json"}, json=payload)
         assert resp.status_code == 200
-        structured = resp.json()["result"]["structuredContent"]
+        structured = extract_structured(resp.json())
+        data = structured["data"]
         assert structured["error"] is None
-        stress_map = {item["id"]: item for item in structured["stress_results"]}
+        stress_map = {item["id"]: item for item in data["stress_results"]}
         assert "credit_spreads_+150bp" in stress_map
         assert stress_map["rates_+300bp"]["pnl_pct"] == pytest.approx(-15.0)
         assert stress_map["credit_spreads_+150bp"]["pnl_pct"] == pytest.approx(-6.0)

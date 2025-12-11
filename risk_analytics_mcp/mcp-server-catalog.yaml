@@ -1,0 +1,83 @@
+# Конфигурация MCP сервера risk-analytics-mcp
+id: "risk-analytics-mcp"
+name: "Risk Analytics MCP Server"
+description: |
+  MCP сервер для расчёта метрик риска портфелей, корреляционных матриц и сравнительного анализа эмитентов на основе данных MOEX.
+  Предоставляет инструменты для анализа рисков портфелей, расчёта корреляций между инструментами, оценки стресс-сценариев и сравнения эмитентов с пирами по ключевым мультипликаторам.
+
+tools:
+  - name: "compute_portfolio_risk_basic"
+    description: "Вычислить базовые метрики риска портфеля"
+    parameters:
+      positions: "array - Список позиций портфеля с тикерами и весами"
+      from_date: "string - Начальная дата периода в формате YYYY-MM-DD"
+      to_date: "string - Конечная дата периода в формате YYYY-MM-DD"
+      rebalance: "string - Стратегия ребалансировки: 'buy_and_hold' или 'monthly'"
+      aggregates: "object - Агрегированные характеристики портфеля для стресс-сценариев"
+      stress_scenarios: "array - Список идентификаторов стресс-сценариев"
+      var_config: "object - Параметры для расчёта VaR"
+
+  - name: "compute_correlation_matrix"
+    description: "Вычислить матрицу корреляций доходностей для списка инструментов"
+    parameters:
+      tickers: "array - Список тикеров для построения матрицы корреляций (минимум 2)"
+      from_date: "string - Начальная дата периода в формате YYYY-MM-DD"
+      to_date: "string - Конечная дата периода в формате YYYY-MM-DD"
+
+  - name: "issuer_peers_compare"
+    description: "Сравнить эмитента с пирами по фундаментальным и рыночным мультипликаторам"
+    parameters:
+      ticker: "string - Ticker целевого эмитента (предпочтительный идентификатор)"
+      isin: "string - ISIN (опционально, если ticker не указан)"
+      issuer_id: "string - MOEX issuer id (опционально)"
+      index_ticker: "string - Индекс для подбора пиров (по умолчанию IMOEX)"
+      sector: "string - Фильтр по сектору/отрасли (опционально)"
+      peer_tickers: "array - Явный список тикеров-пиров (перекрывает index_ticker)"
+      max_peers: "integer - Максимальное число пиров (по умолчанию 10, максимум 100)"
+      as_of_date: "string - Дата среза данных в формате YYYY-MM-DD"
+
+rawEnvs:
+  RISK_MCP_PORT:
+    isRequired: false
+    description: "Порт MCP сервера риск-аналитики"
+  PORT:
+    isRequired: false
+    description: "Общий порт (используется, если RISK_MCP_PORT не задан)"
+  RISK_MCP_HOST:
+    isRequired: false
+    description: "Хост MCP сервера риск-аналитики"
+  HOST:
+    isRequired: false
+    description: "Общий хост (используется, если RISK_MCP_HOST не задан)"
+  RISK_MAX_PORTFOLIO_TICKERS:
+    isRequired: false
+    description: "Максимальное количество тикеров в портфеле"
+  RISK_MAX_CORRELATION_TICKERS:
+    isRequired: false
+    description: "Максимальное количество тикеров для корреляционной матрицы"
+  RISK_MAX_LOOKBACK_DAYS:
+    isRequired: false
+    description: "Максимальный период истории в днях"
+  RISK_ENABLE_MONITORING:
+    isRequired: false
+    description: "Включить мониторинг (Prometheus метрики)"
+  RISK_OTEL_ENDPOINT:
+    isRequired: false
+    description: "OpenTelemetry endpoint для экспорта трейсов"
+  RISK_OTEL_SERVICE_NAME:
+    isRequired: false
+    description: "Имя сервиса для OpenTelemetry"
+
+secretEnvs: {}
+
+image_uri: ${IMAGE_URI}
+license_url: "https://example.com/license"
+tags: ["risk", "analytics", "portfolio", "correlation", "moex", "peers", "fundamentals", "valuation"]
+category: "Risk Analytics"
+versions: ["1.0.0"]
+exposed_ports:
+  - port: 8010
+    protocol: "HTTP"
+status: "MCP_SERVER_PREDEFINED_STATUS_AVAILABLE"
+type: "MCP_SERVER_PREDEFINED_TYPE_INTERNAL"
+

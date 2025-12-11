@@ -7,6 +7,11 @@ from risk_analytics_mcp.models import (
     ConcentrationMetrics,
     CorrelationMatrixInput,
     CorrelationMatrixOutput,
+    IssuerPeersCompareInput,
+    IssuerPeersComparePeer,
+    IssuerPeersCompareReport,
+    MetricRank,
+    PeersFlag,
     PortfolioMetrics,
     PortfolioRiskBasicOutput,
     PortfolioRiskInput,
@@ -31,6 +36,8 @@ def test_risk_schemas_are_valid():
         "compute_portfolio_risk_basic_output.json",
         "compute_correlation_matrix_input.json",
         "compute_correlation_matrix_output.json",
+        "issuer_peers_compare_input.json",
+        "issuer_peers_compare_output.json",
     ]:
         schema = _load_schema(filename)
         Draft7Validator.check_schema(schema)
@@ -39,7 +46,7 @@ def test_risk_schemas_are_valid():
 def test_tools_json_references_exist_and_named():
     tools_data = json.loads(TOOLS_JSON.read_text())
     names = {tool["name"] for tool in tools_data.get("tools", [])}
-    assert names == {"compute_portfolio_risk_basic", "compute_correlation_matrix"}
+    assert names == {"compute_portfolio_risk_basic", "compute_correlation_matrix", "issuer_peers_compare"}
 
     base_dir = TOOLS_JSON.parent
     for tool in tools_data["tools"]:
@@ -93,3 +100,31 @@ def test_correlation_matrix_schema_accepts_pydantic_payloads():
         matrix=[[1.0, 0.2], [0.2, 1.0]],
     )
     Draft7Validator(schema_out).validate(output_model.model_dump(mode="json"))
+
+
+def test_issuer_peers_compare_schema_accepts_pydantic_payloads():
+    schema_in = _load_schema("issuer_peers_compare_input.json")
+    schema_out = _load_schema("issuer_peers_compare_output.json")
+
+    input_model = IssuerPeersCompareInput(ticker="SBER", index_ticker="IMOEX", max_peers=5)
+    Draft7Validator(schema_in).validate(input_model.model_dump(mode="json"))
+
+    base_peer = IssuerPeersComparePeer(
+        ticker="SBER",
+        price=300.0,
+        market_cap=1_000_000_000_000.0,
+        pe_ratio=5.0,
+        ev_to_ebitda=4.0,
+        debt_to_ebitda=1.0,
+        roe_pct=20.0,
+        dividend_yield_pct=7.0,
+    )
+    peer = IssuerPeersComparePeer(ticker="GAZP", price=200.0)
+    report = IssuerPeersCompareReport.success(
+        metadata={"base_ticker": "SBER", "peer_count": 1, "max_peers": 5},
+        base_issuer=base_peer,
+        peers=[peer],
+        ranking=[MetricRank(metric="pe_ratio", value=5.0, rank=1, total=2, percentile=0.5)],
+        flags=[PeersFlag(code="OVERVALUED", severity="medium", message="Test")],
+    )
+    Draft7Validator(schema_out).validate(report.model_dump(mode="json"))

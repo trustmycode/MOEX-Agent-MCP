@@ -5,6 +5,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+import anyio
 import pytest
 from starlette.testclient import TestClient
 
@@ -13,6 +14,12 @@ from moex_iss_mcp.models import GetSecuritySnapshotInput, GetSecuritySnapshotOut
 from moex_iss_mcp.server import McpServer
 from moex_iss_sdk.exceptions import InvalidTickerError, IssTimeoutError
 from moex_iss_sdk.models import SecuritySnapshot
+
+
+def _call_tool(server: McpServer, name: str, **kwargs):
+    tool = server.fastmcp._tool_manager._tools[name]
+    result = anyio.run(lambda: tool.fn(**kwargs))
+    return getattr(result, "structured_content", result)
 
 
 class TestGetSecuritySnapshotTool:
@@ -45,10 +52,7 @@ class TestGetSecuritySnapshotTool:
                 # Вызов через FastMCP tool (нужно найти правильный endpoint)
                 # Для FastMCP с streamable-http обычно используется POST /mcp
                 # Но для тестирования можно вызвать функцию напрямую
-                result = server.fastmcp._tools["get_security_snapshot"].func(
-                    ticker="SBER",
-                    board="TQBR",
-                )
+                result = _call_tool(server, "get_security_snapshot", ticker="SBER", board="TQBR")
 
                 # Проверка результата
                 assert "metadata" in result
@@ -89,10 +93,7 @@ class TestGetSecuritySnapshotTool:
             app = server.fastmcp.http_app(transport="streamable-http")
 
             with TestClient(app) as client:
-                result = server.fastmcp._tools["get_security_snapshot"].func(
-                    ticker="INVALID",
-                    board="TQBR",
-                )
+                result = _call_tool(server, "get_security_snapshot", ticker="INVALID", board="TQBR")
 
                 # Проверка ошибки
                 assert result["error"] is not None
@@ -111,10 +112,7 @@ class TestGetSecuritySnapshotTool:
             app = server.fastmcp.http_app(transport="streamable-http")
 
             with TestClient(app) as client:
-                result = server.fastmcp._tools["get_security_snapshot"].func(
-                    ticker="SBER",
-                    board="TQBR",
-                )
+                result = _call_tool(server, "get_security_snapshot", ticker="SBER", board="TQBR")
 
                 # Проверка ошибки
                 assert result["error"] is not None
@@ -140,10 +138,7 @@ class TestGetSecuritySnapshotTool:
 
             with TestClient(app) as client:
                 # Вызов без указания борда
-                result = server.fastmcp._tools["get_security_snapshot"].func(
-                    ticker="SBER",
-                    board=None,
-                )
+                result = _call_tool(server, "get_security_snapshot", ticker="SBER", board=None)
 
                 # Проверка, что использован дефолтный борд
                 assert result["metadata"]["board"] == "TQBR"
@@ -155,10 +150,7 @@ class TestGetSecuritySnapshotTool:
 
         # Пустой тикер должен вызвать ошибку валидации
         with pytest.raises(Exception):  # Может быть ValueError или ValidationError
-            result = server.fastmcp._tools["get_security_snapshot"].func(
-                ticker="",
-                board="TQBR",
-            )
+            _call_tool(server, "get_security_snapshot", ticker="", board="TQBR")
 
     def test_snapshot_without_optional_fields(self):
         """Снимок без опциональных полей (open, high, low, volume, value)."""
@@ -183,10 +175,7 @@ class TestGetSecuritySnapshotTool:
             app = server.fastmcp.http_app(transport="streamable-http")
 
             with TestClient(app) as client:
-                result = server.fastmcp._tools["get_security_snapshot"].func(
-                    ticker="SBER",
-                    board="TQBR",
-                )
+                result = _call_tool(server, "get_security_snapshot", ticker="SBER", board="TQBR")
 
                 # Проверка, что обязательные поля присутствуют
                 assert result["data"]["last_price"] == 300.5
@@ -202,5 +191,3 @@ class TestGetSecuritySnapshotTool:
 
                 # Метрики могут отсутствовать, если нет данных для расчёта
                 # (intraday_volatility требует хотя бы open или high/low)
-
-

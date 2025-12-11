@@ -6,6 +6,7 @@ MOEX-ориентированная реализация.
 from __future__ import annotations
 
 import os
+import math
 from abc import ABC, abstractmethod
 from datetime import date, timedelta
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
@@ -58,6 +59,7 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
         self._dividend_lookback_days = dividend_lookback_days or int(
             os.getenv("RISK_FUNDAMENTALS_DIVIDEND_LOOKBACK_DAYS", "365")
         )
+        self._sector_index = (os.getenv("RISK_FUNDAMENTALS_SECTOR_INDEX") or "IMOEX").upper()
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -94,11 +96,11 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
         """
         Загрузить данные из MOEX ISS и построить IssuerFundamentals.
 
-        В текущем MVP реализованы:
-        - цена и капитализация (через snapshot + issuesize);
-        - дивидендная доходность (по сумме дивидендов за lookback / цену).
-        Отчётные показатели (revenue, EBITDA и др.) оставляются None до
-        появления стабильного JSON-источника (CCI/MSFO или аналогичный).
+        Используются:
+        - цена и капитализация (snapshot + issuesize);
+        - мультипликаторы из snapshot.marketdata_yields (если доступны);
+        - дивидендная доходность (по сумме дивидендов за lookback / цену или snapshot yield);
+        - сектор/индустрия из состава индекса (если удалось получить).
         """
         # Бросает InvalidTickerError, которая далее будет замаплена в error_type.
         snapshot = self._iss_client.get_security_snapshot(ticker, board=None)
@@ -106,6 +108,7 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
         # Статическое описание бумаги: ISIN, ISSUESIZE, FACEUNIT и др.
         # Реализовано в IssClient поверх /securities/{ticker}.json.
         security_info = self._iss_client.get_security_info(ticker)
+        sector = self._try_get_sector(ticker)
 
         price = snapshot.last_price
         shares_outstanding = security_info.issue_size
@@ -113,7 +116,19 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
         if price is not None and shares_outstanding is not None:
             market_cap = float(price) * float(shares_outstanding)
 
-        dividend_yield_pct = self._compute_dividend_yield_pct(ticker, price)
+        # Попробуем достать готовые метрики из raw marketdata_yields.
+        raw = snapshot.raw or {}
+        pe_ratio = self._first_non_none(raw, ["PE", "PE_RT", "PE_COEF", "PETO"])
+        ev_to_ebitda = self._first_non_none(raw, ["EVEBITDA", "EV_TO_EBITDA"])
+        debt_to_ebitda = self._first_non_none(raw, ["DEBT_EBITDA", "NETDEBTEBITDA"])
+        ebitda = self._first_non_none(raw, ["EBITDA", "EBITDA12M"])
+        net_income = self._first_non_none(raw, ["NET_INCOME", "NETINCOME", "NETPROFIT"])
+        net_debt = self._first_non_none(raw, ["NET_DEBT", "NETDEBT"])
+        total_equity = self._first_non_none(raw, ["EQUITY", "TOTAL_EQUITY"])
+        dividend_yield_pct = self._first_non_none(raw, ["DIVYIELD", "DIVIDEND_YIELD"])
+
+        if dividend_yield_pct is None:
+            dividend_yield_pct = self._compute_dividend_yield_pct(ticker, price)
 
         return IssuerFundamentals(
             ticker=ticker,
@@ -121,11 +136,17 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
             issuer_name=security_info.short_name,
             reporting_currency=security_info.face_unit or "RUB",
             as_of=snapshot.as_of,
-            # Отчётные показатели (revenue/EBITDA/net_income/долг) остаются None
-            # до появления надёжного JSON-источника (CCI/MSFO).
             price=price,
             shares_outstanding=shares_outstanding,
             market_cap=market_cap,
+            total_equity=total_equity,
+            ebitda=ebitda,
+            net_income=net_income,
+            net_debt=net_debt,
+            pe_ratio=pe_ratio,
+            ev_to_ebitda=ev_to_ebitda,
+            debt_to_ebitda=debt_to_ebitda,
+            sector=sector,
             dividend_yield_pct=dividend_yield_pct,
         )
 
@@ -157,6 +178,34 @@ class MoexIssFundamentalsProvider(FundamentalsDataProvider):
             return None
         return (total_dividend / float(price)) * 100.0
 
+    def _try_get_sector(self, ticker: str) -> Optional[str]:
+        """
+        Попробовать получить сектор/индустрию из состава индекса (analytics API).
+        Не влияет на основной поток, ошибки глушатся.
+        """
+        try:
+            constituents = self._iss_client.get_index_constituents(self._sector_index, utc_now().date())
+        except Exception:
+            return None
+        for member in constituents:
+            if (member.ticker or "").upper() == ticker.upper():
+                if member.sector:
+                    return str(member.sector).upper()
+        return None
+
+    @staticmethod
+    def _first_non_none(raw: Mapping[str, object], keys: Iterable[str]) -> Optional[float]:
+        for key in keys:
+            value = raw.get(key)
+            if value is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(numeric):
+                return numeric
+        return None
+
 
 __all__ = ["FundamentalsDataProvider", "MoexIssFundamentalsProvider"]
-

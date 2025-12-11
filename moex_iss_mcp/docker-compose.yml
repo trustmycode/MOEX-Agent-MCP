@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  moex-iss-mcp:
+    build:
+      context: ..
+      dockerfile: moex_iss_mcp/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8000}:8000"
+    restart: unless-stopped

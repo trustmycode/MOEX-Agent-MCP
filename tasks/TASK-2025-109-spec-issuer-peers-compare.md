@@ -2,7 +2,7 @@
 
 ## Статус
 
-- Статус: planned
+- Статус: done
 - Приоритет: P0.5
 - Компонент: risk-analytics-mcp
 - Связанные сценарии: issuer_peers_compare (5)
@@ -65,16 +65,16 @@ JSON Schema и записей в `tools.json`, чтобы агент мог ис
 
 ## Acceptance Criteria
 
-- [ ] В SPEC-документе для `risk-analytics-mcp` (или отдельном разделе)
+- [x] В SPEC-документе для `risk-analytics-mcp` (или отдельном разделе)
       задокументированы JSON Schema `IssuerPeersCompareInput` и
       `IssuerPeersCompareReport`, включая описания полей и примеры.
-- [ ] В `tools.json` для `risk-analytics-mcp` добавлена запись
+- [x] В `tools.json` для `risk-analytics-mcp` добавлена запись
       `issuer_peers_compare` с корректными ссылками на схемы входа/выхода
       и понятным EN-описанием назначения инструмента.
-- [ ] Локальная или платформенная валидация `tools.json` проходит без
+- [x] Локальная или платформенная валидация `tools.json` проходит без
       ошибок; MCP можно зарегистрировать в Evolution AI Agents без
       ручных правок по этому инструменту.
-- [ ] Агент (через `ToolRegistry` или аналог) может получить метаданные
+- [x] Агент (через `ToolRegistry` или аналог) может получить метаданные
       `issuer_peers_compare` из `tools.json` и использовать их при
       планировании сценария 5.
 

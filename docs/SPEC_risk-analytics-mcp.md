@@ -189,7 +189,245 @@
   - `rates_+300bp` — рост ставок на 300 bps с учётом дюрации;  
   - `credit_spreads_+150bp` — расширение кредитных спредов на 150 bps.
 
-### 2.2. Tool: `compute_correlation_matrix`
+### 2.2. Tool: `issuer_peers_compare`
+
+**Назначение:** сравнение эмитента с пирами по ключевым фундаментальным и рыночным мультипликаторам. Формирует компактный отчёт с базовым эмитентом, списком пиров, ранжированием по ключевым метрикам и эвристическими флагами.
+
+#### Input JSON Schema
+
+Источник: `docs/schemas/issuer_peers_compare_input.json`
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IssuerPeersCompareInput",
+  "description": "Input schema for risk-analytics-mcp.issuer_peers_compare tool.",
+  "type": "object",
+  "properties": {
+    "ticker": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Target issuer ticker (preferred identifier), e.g. 'SBER'."
+    },
+    "isin": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 20,
+      "description": "ISIN identifier (used if ticker is not provided)."
+    },
+    "issuer_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "MOEX issuer id (optional)."
+    },
+    "index_ticker": {
+      "type": ["string", "null"],
+      "default": "IMOEX",
+      "description": "Index used to pick peers (e.g. 'IMOEX', 'RTSI')."
+    },
+    "sector": {
+      "type": ["string", "null"],
+      "description": "Optional sector filter to narrow peer selection."
+    },
+    "peer_tickers": {
+      "type": ["array", "null"],
+      "description": "Explicit list of peer tickers (overrides index-based lookup).",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "maxItems": 100
+    },
+    "max_peers": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Maximum number of peers to include."
+    },
+    "as_of_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Date for data snapshot (YYYY-MM-DD). Defaults to today."
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+Дополнительно валидируется вне схемы: хотя бы один из `ticker`, `isin`, `issuer_id` должен быть задан.
+
+#### Output JSON Schema
+
+Источник: `docs/schemas/issuer_peers_compare_output.json`
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IssuerPeersCompareReport",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Request metadata and applied filters.",
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "base_ticker": { "type": "string" },
+        "index_ticker": { "type": ["string", "null"] },
+        "sector_filter": { "type": ["string", "null"] },
+        "peer_count": { "type": "integer", "minimum": 0 },
+        "max_peers": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["base_ticker", "peer_count", "max_peers"]
+    },
+    "base_issuer": {
+      "type": ["object", "null"],
+      "description": "Aggregated metrics for base issuer.",
+      "properties": {
+        "ticker": { "type": "string" },
+        "isin": { "type": ["string", "null"] },
+        "issuer_name": { "type": ["string", "null"] },
+        "sector": { "type": ["string", "null"] },
+        "price": { "type": ["number", "null"] },
+        "market_cap": { "type": ["number", "null"] },
+        "enterprise_value": { "type": ["number", "null"] },
+        "pe_ratio": { "type": ["number", "null"] },
+        "ev_to_ebitda": { "type": ["number", "null"] },
+        "debt_to_ebitda": { "type": ["number", "null"] },
+        "roe_pct": { "type": ["number", "null"] },
+        "dividend_yield_pct": { "type": ["number", "null"] }
+      }
+    },
+    "peers": {
+      "type": "array",
+      "description": "Peer issuers with comparable metrics.",
+      "items": { "$ref": "#/definitions/IssuerPeersComparePeer" }
+    },
+    "ranking": {
+      "type": "array",
+      "description": "Ranking of base issuer against peers for key metrics.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "metric": { "type": "string" },
+          "value": { "type": ["number", "null"] },
+          "rank": { "type": ["integer", "null"], "minimum": 1 },
+          "total": { "type": "integer", "minimum": 0 },
+          "percentile": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        },
+        "required": ["metric", "total"]
+      }
+    },
+    "flags": {
+      "type": "array",
+      "description": "Heuristic flags (overvalued/undervalued, high_leverage, etc.).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "message": { "type": "string" },
+          "metric": { "type": ["string", "null"] }
+        },
+        "required": ["code", "severity", "message"]
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Error details if comparison failed.",
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": ["object", "null"] }
+      },
+      "required": ["error_type", "message"]
+    }
+  },
+  "required": ["metadata", "peers", "ranking", "flags"]
+}
+```
+
+#### Поддерживаемые `error_type` для `issuer_peers_compare`
+
+| error_type | Описание |
+|------------|----------|
+| `INVALID_TICKER` | Указанный тикер не найден в ISS. |
+| `NO_PEERS_FOUND` | Не удалось найти пиров по заданным критериям (индекс/сектор). |
+| `NO_FUNDAMENTAL_DATA` | Недостаточно фундаментальных данных по базовому эмитенту. |
+| `VALIDATION_ERROR` | Нарушение контрактов схемы/валидаторов. |
+| `ISS_TIMEOUT` / `ISS_5XX` | Сетевые/серверные ошибки ISS. |
+| `UNKNOWN` | Прочие неисчерпывающие ошибки. |
+
+#### Пример запроса/ответа
+
+**Request:**
+```json
+{
+  "ticker": "SBER",
+  "index_ticker": "IMOEX",
+  "sector": "FINANCIALS",
+  "max_peers": 5
+}
+```
+
+**Response:**
+```json
+{
+  "metadata": {
+    "as_of": "2025-01-15T10:30:00Z",
+    "base_ticker": "SBER",
+    "index_ticker": "IMOEX",
+    "sector_filter": "FINANCIALS",
+    "peer_count": 4,
+    "max_peers": 5
+  },
+  "base_issuer": {
+    "ticker": "SBER",
+    "issuer_name": "Сбербанк России ПАО",
+    "sector": "FINANCIALS",
+    "price": 280.5,
+    "market_cap": 6300000000000,
+    "pe_ratio": 5.2,
+    "ev_to_ebitda": null,
+    "debt_to_ebitda": null,
+    "roe_pct": 22.5,
+    "dividend_yield_pct": 8.3
+  },
+  "peers": [
+    {
+      "ticker": "VTBR",
+      "issuer_name": "Банк ВТБ ПАО",
+      "sector": "FINANCIALS",
+      "pe_ratio": 3.8,
+      "roe_pct": 15.2,
+      "dividend_yield_pct": 0.0
+    }
+  ],
+  "ranking": [
+    { "metric": "pe_ratio", "value": 5.2, "rank": 2, "total": 5, "percentile": 0.6 },
+    { "metric": "roe_pct", "value": 22.5, "rank": 1, "total": 5, "percentile": 1.0 },
+    { "metric": "dividend_yield_pct", "value": 8.3, "rank": 1, "total": 5, "percentile": 1.0 }
+  ],
+  "flags": [
+    {
+      "code": "HIGH_ROE",
+      "severity": "low",
+      "message": "ROE выше 75-го перцентиля среди пиров",
+      "metric": "roe_pct"
+    },
+    {
+      "code": "HIGH_DIVIDEND",
+      "severity": "low",
+      "message": "Дивидендная доходность в топ-25% среди пиров",
+      "metric": "dividend_yield_pct"
+    }
+  ],
+  "error": null
+}
+```
+
+---
+
+### 2.3. Tool: `compute_correlation_matrix`
 
 **Назначение:** построение матрицы корреляций дневных доходностей для заданных тикеров и периода.
 

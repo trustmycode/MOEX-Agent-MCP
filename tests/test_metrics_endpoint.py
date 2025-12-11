@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -34,8 +35,10 @@ def test_prometheus_metrics_exposed_and_incremented():
         with patch.object(
             server.iss_client, "get_security_snapshot", return_value=_sample_snapshot()
         ):
-            server.fastmcp._tools["get_security_snapshot"].func(
-                ticker="SBER", board="TQBR"
+            asyncio.run(
+                server.fastmcp._tool_manager._tools["get_security_snapshot"].fn(
+                    ticker="SBER", board="TQBR"
+                )
             )
 
         with patch.object(
@@ -43,9 +46,11 @@ def test_prometheus_metrics_exposed_and_incremented():
             "get_security_snapshot",
             side_effect=InvalidTickerError("bad ticker"),
         ):
-            result = server.fastmcp._tools["get_security_snapshot"].func(
-                ticker="BAD", board="TQBR"
-            )
+            result = asyncio.run(
+                server.fastmcp._tool_manager._tools["get_security_snapshot"].fn(
+                    ticker="BAD", board="TQBR"
+                )
+            ).structured_content
             assert result["error"]["error_type"] == "INVALID_TICKER"
 
         resp = client.get("/metrics")

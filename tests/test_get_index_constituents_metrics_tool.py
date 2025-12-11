@@ -5,12 +5,20 @@
 from datetime import date
 from unittest.mock import patch
 
+import anyio
 from starlette.testclient import TestClient
 
 from moex_iss_mcp.config import McpConfig
 from moex_iss_mcp.server import McpServer
+from moex_iss_mcp.tools.get_index_constituents_metrics import init_tool_dependencies as init_index_tool_dependencies
 from moex_iss_sdk.exceptions import InvalidTickerError
 from moex_iss_sdk.models import IndexConstituent
+
+
+def _call_tool(server: McpServer, name: str, **kwargs):
+    tool = server.fastmcp._tool_manager._tools[name]
+    result = anyio.run(lambda: tool.fn(**kwargs))
+    return getattr(result, "structured_content", result)
 
 
 class TestGetIndexConstituentsMetricsTool:
@@ -30,7 +38,9 @@ class TestGetIndexConstituentsMetricsTool:
         with patch.object(server.iss_client, "get_index_constituents", return_value=members):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+                result = _call_tool(
+                    server,
+                    "get_index_constituents_metrics",
                     index_ticker="IMOEX",
                     as_of_date="2024-01-10",
                 )
@@ -53,7 +63,9 @@ class TestGetIndexConstituentsMetricsTool:
 
         app = server.fastmcp.http_app(transport="streamable-http")
         with TestClient(app):
-            result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+            result = _call_tool(
+                server,
+                "get_index_constituents_metrics",
                 index_ticker="UNKNOWN",
                 as_of_date=date(2024, 1, 10),
             )
@@ -79,7 +91,9 @@ class TestGetIndexConstituentsMetricsTool:
         with patch.object(server.iss_client, "get_index_constituents", return_value=members):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+                result = _call_tool(
+                    server,
+                    "get_index_constituents_metrics",
                     index_ticker="IMOEX",
                     as_of_date="2024-01-10",
                 )
@@ -99,7 +113,9 @@ class TestGetIndexConstituentsMetricsTool:
         with patch.object(server.iss_client, "get_index_constituents", return_value=members):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+                result = _call_tool(
+                    server,
+                    "get_index_constituents_metrics",
                     index_ticker="IMOEX",
                     as_of_date="2024-01-10",
                 )
@@ -117,7 +133,9 @@ class TestGetIndexConstituentsMetricsTool:
         with patch.object(server.iss_client, "get_index_constituents", side_effect=InvalidTickerError("bad index")):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+                result = _call_tool(
+                    server,
+                    "get_index_constituents_metrics",
                     index_ticker="IMOEX",
                     as_of_date="2024-01-10",
                 )
@@ -134,7 +152,9 @@ class TestGetIndexConstituentsMetricsTool:
         with patch.object(server.iss_client, "get_index_constituents", return_value=members) as mock_get:
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_index_constituents_metrics"].func(
+                result = _call_tool(
+                    server,
+                    "get_index_constituents_metrics",
                     index_ticker="imoex",
                     as_of_date="2024-01-10",
                 )
@@ -166,18 +186,13 @@ class TestGetIndexConstituentsMetricsTool:
         config = McpConfig()
         server = McpServer(config)
         server._index_cache = cache  # type: ignore[attr-defined]
+        init_index_tool_dependencies(server.iss_client, server.metrics, server.tracing, cache)
 
         with patch.object(server.iss_client, "get_index_constituents", return_value=members):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                server.fastmcp._tools["get_index_constituents_metrics"].func(
-                    index_ticker="IMOEX",
-                    as_of_date="2024-01-10",
-                )
-                server.fastmcp._tools["get_index_constituents_metrics"].func(
-                    index_ticker="IMOEX",
-                    as_of_date="2024-01-11",
-                )
+                _call_tool(server, "get_index_constituents_metrics", index_ticker="IMOEX", as_of_date="2024-01-10")
+                _call_tool(server, "get_index_constituents_metrics", index_ticker="IMOEX", as_of_date="2024-01-11")
 
         assert cache.set_calls == [("IMOEX", "IMOEX")]
         assert cache.get_calls.count("IMOEX") >= 2

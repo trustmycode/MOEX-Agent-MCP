@@ -4,15 +4,15 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from moex_iss_sdk import IssClientSettings
 from moex_iss_sdk import endpoints as iss_endpoints
 
 # Приоритетно загружаем .env.mcp, затем общий .env и .env.sdk (для MOEX-параметров)
-load_dotenv(dotenv_path=".env.mcp")
-load_dotenv()
-load_dotenv(dotenv_path=".env.sdk")
+load_dotenv(find_dotenv(filename=".env.mcp", raise_error_if_not_found=False))
+load_dotenv(find_dotenv())
+load_dotenv(find_dotenv(filename=".env.sdk", raise_error_if_not_found=False))
 
 # Значения по умолчанию из окружения, чтобы избежать хардкода.
 DEFAULT_PORT = int(os.getenv("PORT", "8000"))
@@ -70,3 +70,29 @@ class McpConfig:
             rate_limit_rps=self.moex_iss_rate_limit_rps,
             timeout_seconds=self.moex_iss_timeout_seconds,
         )
+
+
+def _require_env_vars(names: list[str]) -> dict[str, str]:
+    """
+    Проверяет наличие обязательных переменных окружения.
+
+    Args:
+        names: Список имен переменных окружения
+
+    Returns:
+        Словарь с переменными окружения
+
+    Raises:
+        McpError: Если отсутствуют обязательные переменные
+    """
+    from mcp.shared.exceptions import ErrorData, McpError
+
+    missing = [n for n in names if not os.getenv(n)]
+    if missing:
+        raise McpError(
+            ErrorData(
+                code=-32602,  # Invalid params
+                message=f"Отсутствуют обязательные переменные окружения: {', '.join(missing)}",
+            )
+        )
+    return {n: os.getenv(n, "") for n in names}

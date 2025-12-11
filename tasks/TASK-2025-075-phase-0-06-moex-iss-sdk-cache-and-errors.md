@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-075
 title: "Фаза 0.6. Кэш и расширенные исключения в moex_iss_sdk"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 16h

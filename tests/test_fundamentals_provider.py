@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from moex_iss_sdk import IssClient, IssClientSettings
-from moex_iss_sdk.models import DividendRecord, SecurityInfo, SecuritySnapshot
+from moex_iss_sdk.models import DividendRecord, IndexConstituent, SecurityInfo, SecuritySnapshot
 from risk_analytics_mcp.providers import MoexIssFundamentalsProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -189,6 +189,9 @@ class CountingIssClient(IssClient):
         # по умолчанию без дивидендов
         return []
 
+    def get_index_constituents(self, index_ticker: str, as_of_date):  # type: ignore[override]
+        return []
+
 
 def test_fundamentals_provider_uses_cache_for_repeat_calls():
     client = CountingIssClient()
@@ -223,6 +226,59 @@ def test_dividend_yield_is_none_when_price_not_positive():
     fundamentals = provider.get_issuer_fundamentals("SBER")
     assert fundamentals.price == 0.0
     assert fundamentals.dividend_yield_pct is None
+
+
+def test_provider_extracts_multiples_and_sector_from_raw():
+    class RichClient(CountingIssClient):
+        def __init__(self):
+            super().__init__()
+            self.calls.update({"index": 0})
+
+        def get_security_snapshot(self, ticker: str, board: str | None = None) -> SecuritySnapshot:  # type: ignore[override]  # noqa: E501
+            snap = super().get_security_snapshot(ticker, board)
+            snap.raw = {
+                "PE": 5.0,
+                "EVEBITDA": 4.0,
+                "DEBT_EBITDA": 1.2,
+                "DIVYIELD": 8.0,
+                "EBITDA": 10_000.0,
+                "NET_INCOME": 8_000.0,
+                "NET_DEBT": 12_000.0,
+                "EQUITY": 20_000.0,
+            }
+            return snap
+
+        def get_index_constituents(self, index_ticker: str, as_of_date):  # type: ignore[override]
+            self.calls["index"] += 1
+            return [
+                IndexConstituent(
+                    index_ticker=index_ticker,
+                    ticker="SBER",
+                    weight_pct=10.0,
+                    last_price=100.0,
+                    price_change_pct=0.0,
+                    sector="FIN",
+                    board="TQBR",
+                    figi=None,
+                    isin=None,
+                    raw={},
+                )
+            ]
+
+    client = RichClient()
+    provider = MoexIssFundamentalsProvider(client)
+
+    fundamentals = provider.get_issuer_fundamentals("SBER")
+
+    assert fundamentals.pe_ratio == 5.0
+    assert fundamentals.ev_to_ebitda == 4.0
+    assert fundamentals.debt_to_ebitda == 1.2
+    assert fundamentals.dividend_yield_pct == 8.0
+    assert fundamentals.ebitda == 10_000.0
+    assert fundamentals.net_income == 8_000.0
+    assert fundamentals.net_debt == 12_000.0
+    assert fundamentals.total_equity == 20_000.0
+    assert fundamentals.sector == "FIN"
 
 
 @pytest.mark.skipif(not os.getenv("ENABLE_FUNDAMENTALS_ISS_SMOKE"), reason="ENABLE_FUNDAMENTALS_ISS_SMOKE not set")

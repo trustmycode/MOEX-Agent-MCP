@@ -2,9 +2,11 @@
 Интеграционные тесты для инструмента get_ohlcv_timeseries.
 """
 
+import importlib
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
+import anyio
 import pytest
 from starlette.testclient import TestClient
 
@@ -16,6 +18,11 @@ from moex_iss_sdk.models import OhlcvBar
 
 class TestGetOhlcvTimeseriesTool:
     """Тесты для get_ohlcv_timeseries."""
+
+    def _call_tool(self, server: McpConfig, **kwargs):
+        tool = server.fastmcp._tool_manager._tools["get_ohlcv_timeseries"]
+        result = anyio.run(lambda: tool.fn(**kwargs))
+        return getattr(result, "structured_content", result)
 
     def test_successful_timeseries(self):
         """Успешный запрос OHLCV-данных за 90 дней."""
@@ -55,7 +62,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", return_value=bars):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2024-01-01",
@@ -85,7 +93,8 @@ class TestGetOhlcvTimeseriesTool:
     def test_autofill_default_dates(self, monkeypatch):
         """Даты по умолчанию: to=today, from=today-365."""
         fixed_now = datetime(2024, 4, 1, tzinfo=timezone.utc)
-        monkeypatch.setattr("moex_iss_mcp.server.utc_now", lambda: fixed_now)
+        tool_module = importlib.import_module("moex_iss_mcp.tools.get_ohlcv_timeseries")
+        monkeypatch.setattr(tool_module, "utc_now", lambda: fixed_now)
 
         captured = {}
 
@@ -99,7 +108,7 @@ class TestGetOhlcvTimeseriesTool:
 
         app = server.fastmcp.http_app(transport="streamable-http")
         with TestClient(app):
-            result = server.fastmcp._tools["get_ohlcv_timeseries"].func(ticker="SBER")
+            result = self._call_tool(server, ticker="SBER")
 
         assert captured["args"][0] == "SBER"
         assert captured["args"][2] == date(2023, 4, 2)  # 2024-04-01 минус 365 дней
@@ -131,7 +140,7 @@ class TestGetOhlcvTimeseriesTool:
         ):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(ticker="SBER", board=None)
+                result = self._call_tool(server, ticker="SBER", board=None)
 
                 assert result["metadata"]["board"] == "ZZZ"
 
@@ -141,7 +150,8 @@ class TestGetOhlcvTimeseriesTool:
         server = McpServer(config)
 
         with pytest.raises(Exception):
-            server.fastmcp._tools["get_ohlcv_timeseries"].func(
+            self._call_tool(
+                server,
                 ticker="SBER",
                 board="TQBR",
                 from_date="2024-01-01",
@@ -157,7 +167,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", return_value=[]):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2024-01-01",
@@ -176,7 +187,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", side_effect=InvalidTickerError("bad")):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="BAD",
                     board="TQBR",
                     from_date="2024-01-01",
@@ -203,7 +215,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", return_value=[bar]):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2024-01-01",
@@ -237,7 +250,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", side_effect=_mock_get):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2022-01-01",
@@ -260,7 +274,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", return_value=bars):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2024-01-01",
@@ -276,7 +291,8 @@ class TestGetOhlcvTimeseriesTool:
         server = McpServer(config)
 
         with pytest.raises(Exception):
-            server.fastmcp._tools["get_ohlcv_timeseries"].func(
+            self._call_tool(
+                server,
                 ticker="SBER",
                 board="TQBR",
                 from_date="2024-02-01",
@@ -291,7 +307,8 @@ class TestGetOhlcvTimeseriesTool:
         with patch.object(server.iss_client, "get_ohlcv_series", side_effect=DateRangeTooLargeError("too wide")):
             app = server.fastmcp.http_app(transport="streamable-http")
             with TestClient(app):
-                result = server.fastmcp._tools["get_ohlcv_timeseries"].func(
+                result = self._call_tool(
+                    server,
                     ticker="SBER",
                     board="TQBR",
                     from_date="2019-01-01",

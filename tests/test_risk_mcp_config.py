@@ -9,6 +9,8 @@ def test_risk_mcp_config_from_env(monkeypatch):
     monkeypatch.setenv("RISK_MCP_HOST", "127.0.0.1")
     monkeypatch.setenv("RISK_MAX_PORTFOLIO_TICKERS", "15")
     monkeypatch.setenv("RISK_MAX_LOOKBACK_DAYS", "120")
+    monkeypatch.setenv("RISK_MAX_PEERS", "7")
+    monkeypatch.setenv("RISK_DEFAULT_INDEX_TICKER", "mcx10")
     monkeypatch.setenv("RISK_ENABLE_MONITORING", "true")
     monkeypatch.setenv("RISK_OTEL_ENDPOINT", "http://otel.local:4318")
     monkeypatch.setenv("RISK_OTEL_SERVICE_NAME", "risk-mcp")
@@ -21,9 +23,11 @@ def test_risk_mcp_config_from_env(monkeypatch):
     assert cfg.host == "127.0.0.1"
     assert cfg.max_portfolio_tickers == 15
     assert cfg.max_lookback_days == 120
+    assert cfg.max_peers == 7
     assert cfg.enable_monitoring is True
     assert cfg.otel_endpoint == "http://otel.local:4318"
     assert cfg.otel_service_name == "risk-mcp"
+    assert cfg.default_index_ticker == "MCX10"
     assert cfg.iss_settings.base_url == "http://example-iss/"
     assert cfg.iss_settings.rate_limit_rps == 9
 
@@ -33,6 +37,8 @@ def test_risk_mcp_config_validation_errors():
         RiskMcpConfig(max_portfolio_tickers=0)
     with pytest.raises(ValueError):
         RiskMcpConfig(max_lookback_days=0)
+    with pytest.raises(ValueError):
+        RiskMcpConfig(max_peers=0)
 
 
 def test_create_iss_client_uses_settings():

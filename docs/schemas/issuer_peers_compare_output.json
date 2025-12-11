@@ -1,0 +1,226 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IssuerPeersCompareReport",
+  "description": "Output schema for risk-analytics-mcp.issuer_peers_compare tool. Contains base issuer, peers with comparable metrics, ranking and heuristic flags.",
+  "type": "object",
+  "definitions": {
+    "IssuerPeersComparePeer": {
+      "type": "object",
+      "description": "Aggregated fundamental and market metrics for an issuer.",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Ticker symbol, e.g. 'SBER'."
+        },
+        "isin": {
+          "type": ["string", "null"],
+          "description": "ISIN identifier, if available."
+        },
+        "issuer_name": {
+          "type": ["string", "null"],
+          "description": "Issuer legal name from MOEX data."
+        },
+        "sector": {
+          "type": ["string", "null"],
+          "description": "Sector/industry classification, e.g. 'FINANCIALS'."
+        },
+        "as_of": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp when market metrics were captured."
+        },
+        "price": {
+          "type": ["number", "null"],
+          "description": "Current market price per share."
+        },
+        "shares_outstanding": {
+          "type": ["number", "null"],
+          "description": "Total shares outstanding (ISSUESIZE)."
+        },
+        "market_cap": {
+          "type": ["number", "null"],
+          "description": "Market capitalization (price × shares_outstanding)."
+        },
+        "enterprise_value": {
+          "type": ["number", "null"],
+          "description": "Enterprise Value (market_cap + net_debt)."
+        },
+        "net_debt": {
+          "type": ["number", "null"],
+          "description": "Net debt (total debt - cash)."
+        },
+        "ebitda": {
+          "type": ["number", "null"],
+          "description": "EBITDA for the last reporting period."
+        },
+        "net_income": {
+          "type": ["number", "null"],
+          "description": "Net income for the last reporting period."
+        },
+        "pe_ratio": {
+          "type": ["number", "null"],
+          "description": "Price-to-Earnings ratio."
+        },
+        "ev_to_ebitda": {
+          "type": ["number", "null"],
+          "description": "EV/EBITDA multiple."
+        },
+        "debt_to_ebitda": {
+          "type": ["number", "null"],
+          "description": "Net Debt / EBITDA leverage ratio."
+        },
+        "roe_pct": {
+          "type": ["number", "null"],
+          "description": "Return on Equity, %."
+        },
+        "dividend_yield_pct": {
+          "type": ["number", "null"],
+          "description": "Dividend yield, %."
+        }
+      },
+      "required": ["ticker"],
+      "additionalProperties": false
+    },
+    "MetricRank": {
+      "type": "object",
+      "description": "Ranking of base issuer for a specific metric against peers.",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "Metric name: pe_ratio, ev_to_ebitda, roe_pct, debt_to_ebitda, dividend_yield_pct."
+        },
+        "value": {
+          "type": ["number", "null"],
+          "description": "Metric value for the base issuer."
+        },
+        "rank": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Position of base issuer among peers (1 = best)."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of issuers in ranking (base + peers with non-null values)."
+        },
+        "percentile": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Percentile of base issuer (0 = worst, 1 = best)."
+        }
+      },
+      "required": ["metric", "total"],
+      "additionalProperties": false
+    },
+    "PeersFlag": {
+      "type": "object",
+      "description": "Heuristic flag based on comparison with peers.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Flag code: OVERVALUED, UNDERVALUED, HIGH_LEVERAGE, LOW_LEVERAGE, HIGH_ROE, LOW_ROE, HIGH_DIVIDEND, LOW_DIVIDEND."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Flag severity level."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable description of the flag."
+        },
+        "metric": {
+          "type": ["string", "null"],
+          "description": "Metric that triggered the flag."
+        }
+      },
+      "required": ["code", "severity", "message"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Request metadata and applied filters.",
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the data snapshot."
+        },
+        "base_ticker": {
+          "type": "string",
+          "description": "Ticker of the base issuer being compared."
+        },
+        "index_ticker": {
+          "type": ["string", "null"],
+          "description": "Index used to select peers (e.g. 'IMOEX')."
+        },
+        "sector_filter": {
+          "type": ["string", "null"],
+          "description": "Sector filter applied (if any)."
+        },
+        "peer_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Actual number of peers included in the report."
+        },
+        "max_peers": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum peers requested."
+        }
+      },
+      "required": ["base_ticker", "peer_count", "max_peers"],
+      "additionalProperties": true
+    },
+    "base_issuer": {
+      "description": "Aggregated metrics for the base issuer being compared.",
+      "oneOf": [
+        { "$ref": "#/definitions/IssuerPeersComparePeer" },
+        { "type": "null" }
+      ]
+    },
+    "peers": {
+      "type": "array",
+      "description": "List of peer issuers with comparable metrics.",
+      "items": { "$ref": "#/definitions/IssuerPeersComparePeer" }
+    },
+    "ranking": {
+      "type": "array",
+      "description": "Ranking of base issuer against peers for key valuation and efficiency metrics.",
+      "items": { "$ref": "#/definitions/MetricRank" }
+    },
+    "flags": {
+      "type": "array",
+      "description": "Heuristic flags indicating overvalued/undervalued status, high leverage, etc.",
+      "items": { "$ref": "#/definitions/PeersFlag" }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Normalized error block following MCP error conventions. Present only when comparison fails.",
+      "properties": {
+        "error_type": {
+          "type": "string",
+          "enum": ["INVALID_TICKER", "NO_PEERS_FOUND", "NO_FUNDAMENTAL_DATA", "VALIDATION_ERROR", "ISS_TIMEOUT", "ISS_5XX", "UNKNOWN"],
+          "description": "Standardized error type code."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message."
+        },
+        "details": {
+          "type": ["object", "null"],
+          "description": "Optional structured error details."
+        }
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "peers", "ranking", "flags"],
+  "additionalProperties": false
+}
