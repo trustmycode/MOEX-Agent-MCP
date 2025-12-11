@@ -118,42 +118,79 @@
 
 ## 4. Обзор архитектуры (C4 Level 2)
 
-### 4.1. Контейнерная диаграмма
+### 4.1. Архитектурный паттерн: Orchestrator + Subagents
+
+Система реализована по паттерну **Orchestrator-Workers (Multi-Agent)**:
+
+- **OrchestratorAgent** — центральный координатор, принимает A2A-запрос, определяет сценарий и делегирует задачи специализированным сабагентам.
+- **Subagents** — автономные агенты с изолированными промптами и чёткой ответственностью. Каждый сабагент имеет доступ только к нужным MCP-клиентам.
+
+**Преимущества паттерна:**
+
+- Изоляция контекста и промптов между задачами (меньше путаницы для LLM).
+- Чёткое разделение ответственности и тестируемость.
+- Возможность независимого масштабирования и развития сабагентов.
+- Упрощённая отладка и мониторинг (трейсы показывают цепочку агентов).
+
+### 4.2. Контейнерная диаграмма
 
 ```mermaid
 C4Context
-    title moex-market-analyst-agent — C4 L2 (Containers)
+    title moex-market-analyst-agent — C4 L2 (Containers, Multi-Agent)
 
     Person(user, "Бизнес-пользователь", "CFO, риск-менеджер, аналитик")
 
-    System_Boundary(sys, "moex-market-analyst-agent") {
-        Container(agent, "AI Agent (A2A)", "Python + ADK/A2A SDK", "Интерпретирует запросы, планирует шаги, вызывает MCP-tools, формирует текстовый ответ и Risk Dashboard.")
-        Container(mcp_moex, "moex-iss-mcp", "Python + FastMCP", "Кастомный MCP-сервер поверх MOEX ISS API (1–3 business-tools).")
-        Container(mcp_risk, "risk-analytics-mcp", "Python + FastMCP", "Расчёты портфельного риска, ребалансировки и CFO-ликвидности по JSON-схемам.")
-        Container(mcp_rag, "kb-rag-mcp (опционально)", "MCP RAG", "Доступ к базе знаний: регламенты, методички, пояснения, выдержки новостей.")
-        Container(monitoring, "Telemetry", "Phoenix / OTEL / Prometheus", "Трейсы и метрики агента и MCP.")
+    System_Boundary(sys, "moex-market-analyst-agent (Multi-Agent System)") {
+        Container(orchestrator, "OrchestratorAgent", "Python + ADK/A2A SDK", "Координирует выполнение сценария, делегирует задачи сабагентам, агрегирует результаты.")
+
+        Container_Boundary(subagents, "Subagents Layer") {
+            Container(planner_sub, "ResearchPlannerSubagent", "Python", "Определяет scenario_type, строит план действий.")
+            Container(market_sub, "MarketDataSubagent", "Python", "Инкапсулирует работу с moex-iss-mcp: котировки, OHLCV, индексы.")
+            Container(risk_sub, "RiskAnalyticsSubagent", "Python", "Обёртка над risk-analytics-mcp: риск, корреляции, стресс-тесты.")
+            Container(dashboard_sub, "DashboardSubagent", "Python", "Формирует RiskDashboardSpec для UI/AGI UI.")
+            Container(explainer_sub, "ExplainerSubagent", "Python", "Генерирует текстовый отчёт (output.text) для разных ролей.")
+            Container(knowledge_sub, "KnowledgeSubagent", "Python", "Работает с kb-rag-mcp: методики, регламенты, новости.")
+        }
+
+        Container(mcp_moex, "moex-iss-mcp", "Python + FastMCP", "Кастомный MCP-сервер поверх MOEX ISS API.")
+        Container(mcp_risk, "risk-analytics-mcp", "Python + FastMCP", "Расчёты портфельного риска, ребалансировки и CFO-ликвидности.")
+        Container(mcp_rag, "kb-rag-mcp (опционально)", "MCP RAG", "Доступ к базе знаний: регламенты, методички, новости.")
+        Container(monitoring, "Telemetry", "Phoenix / OTEL / Prometheus", "Трейсы и метрики агентов и MCP.")
     }
 
     System_Boundary(voice, "Voice Gateway (v2+)") {
-        System(voice_gateway, "Voice Gateway", "ASR/TTS Proxy", "Принимает аудио от Web UI, вызывает ASR (Whisper), проксирует текст в A2A-агента и обратно.")
+        System(voice_gateway, "Voice Gateway", "ASR/TTS Proxy", "Принимает аудио от Web UI, вызывает ASR (Whisper), проксирует текст в A2A-агента.")
     }
 
-    System_Ext(fm, "Evolution Foundation Models API", "Cloud.ru", "LLM, используемая агентом.")
+    System_Ext(fm, "Evolution Foundation Models API", "Cloud.ru", "LLM, используемая Orchestrator и Subagents.")
     System_Ext(moex_iss, "MOEX ISS API", "HTTP JSON API", "Публичный API Московской биржи.")
     System_Ext(asr, "ASR (Whisper v3)", "Cloud.ru Foundation Models", "Распознавание речи для голосового интерфейса.")
 
-    Rel(user, agent, "NL-запросы", "A2A UI Evolution / интеграции")
+    Rel(user, orchestrator, "NL-запросы", "A2A UI Evolution / интеграции")
     Rel(user, voice_gateway, "Голосовые запросы (v2+)", "Web UI → Voice Gateway (audio)")
     Rel(voice_gateway, asr, "Распознавание речи", "FM ASR API")
-    Rel(voice_gateway, agent, "A2A-запросы/ответы", "HTTP + JSON")
+    Rel(voice_gateway, orchestrator, "A2A-запросы/ответы", "HTTP + JSON")
 
-    Rel(agent, fm, "POST /chat/completions", "LLM_API_BASE=https://foundation-models.api.cloud.ru/v1")
-    Rel(agent, mcp_moex, "MCP (streamable-http)", "MCP_URL")
-    Rel(agent, mcp_risk, "MCP (streamable-http)", "MCP_URL")
-    Rel(agent, mcp_rag, "MCP (опционально)", "MCP_URL")
+    Rel(orchestrator, planner_sub, "Определение сценария и плана")
+    Rel(orchestrator, market_sub, "Запрос рыночных данных")
+    Rel(orchestrator, risk_sub, "Запрос риск-аналитики")
+    Rel(orchestrator, dashboard_sub, "Формирование дашборда")
+    Rel(orchestrator, explainer_sub, "Генерация отчёта")
+    Rel(orchestrator, knowledge_sub, "Запрос к базе знаний")
+
+    Rel(planner_sub, fm, "POST /chat/completions")
+    Rel(market_sub, mcp_moex, "MCP (streamable-http)")
+    Rel(risk_sub, mcp_risk, "MCP (streamable-http)")
+    Rel(knowledge_sub, mcp_rag, "MCP (опционально)")
+    Rel(explainer_sub, fm, "POST /chat/completions")
+    Rel(dashboard_sub, fm, "POST /chat/completions (опционально)")
+
     Rel(mcp_risk, mcp_moex, "Data provider (котировки/справочники)", "MCP call")
     Rel(mcp_moex, moex_iss, "REST-запросы", "HTTPS JSON")
-    Rel(agent, monitoring, "Трейсы/метрики агента")
+
+    Rel(orchestrator, monitoring, "Трейсы/метрики Orchestrator")
+    Rel(market_sub, monitoring, "Трейсы Subagent")
+    Rel(risk_sub, monitoring, "Трейсы Subagent")
     Rel(mcp_moex, monitoring, "Метрики MCP")
     Rel(mcp_risk, monitoring, "Метрики MCP")
 ```

@@ -274,3 +274,18 @@ def get_ohlcv_timeseries(input: GetOhlcvTimeseriesInput) -> GetOhlcvTimeseriesOu
             error=error_model,
         )
 ```
+
+---
+
+## 5. Потребители MCP (Consumers)
+
+В мультиагентной архитектуре `moex-iss-mcp` используется следующими компонентами:
+
+| Потребитель | Роль | Описание использования |
+|-------------|------|------------------------|
+| **MarketDataSubagent** | Сабагент AI-агента | Инкапсулирует всю работу с рыночными данными. Вызывает `get_security_snapshot`, `get_ohlcv_timeseries`, `get_index_constituents_metrics`. |
+| **risk-analytics-mcp** | MCP-сервер | Использует как data-provider для получения OHLCV-данных при расчёте корреляций и волатильности. |
+
+**Важно:**
+- `OrchestratorAgent` **не вызывает** MCP напрямую — только через `MarketDataSubagent`.
+- Все MCP-вызовы проходят через `McpClient`, который управляет тайм-аутами, ретраями и логированием.

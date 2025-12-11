@@ -49,19 +49,81 @@
 
 - текстовый вывод для аналитика (LLM-объяснение).
 
-**Цепочка MCP (идеальный случай):**
+**Цепочка MCP (Multi-Agent):**
 
-1. Agent → `moex-iss-mcp.get_issuer_peers`
+1. OrchestratorAgent → ResearchPlannerSubagent
+   - определяет `scenario_type = issuer_peers_compare`, строит план.
 
+2. OrchestratorAgent → MarketDataSubagent → `moex-iss-mcp.get_issuer_peers`
    - по `ticker/isin` получает список пиров и базовые фичи по каждому эмитенту.
 
-2. Agent → `risk-analytics-mcp.calculate_peers_fundamental_metrics`
-
+3. OrchestratorAgent → RiskAnalyticsSubagent → `risk-analytics-mcp.calculate_peers_fundamental_metrics`
    - нормализует и досчитывает мультипликаторы/метрики.
 
-3. Agent → LLM-summary
+4. OrchestratorAgent → DashboardSubagent
+   - формирует таблицу сравнения пиров для UI.
 
+5. OrchestratorAgent → ExplainerSubagent → LLM
    - строит человекочитаемый вывод («эмитент в верхнем квартиле по ROE, но торгуется с дисконтом по P/E»).
+
+**Sequence Diagram (issuer_peers_compare):**
+
+```mermaid
+sequenceDiagram
+    participant U as User (Аналитик)
+    participant O as OrchestratorAgent
+    participant RP as ResearchPlannerSubagent
+    participant MD as MarketDataSubagent
+    participant RA as RiskAnalyticsSubagent
+    participant DS as DashboardSubagent
+    participant EX as ExplainerSubagent
+    participant MCP_M as moex-iss-mcp
+    participant MCP_R as risk-analytics-mcp
+    participant FM as Foundation Models
+
+    U->>O: A2A-запрос (issuer_peers_compare, ticker=SBER)
+    activate O
+
+    O->>RP: execute(ctx)
+    activate RP
+    RP->>FM: Определить scenario_type
+    FM-->>RP: scenario_type=issuer_peers_compare
+    RP-->>O: SubagentResult(plan)
+    deactivate RP
+
+    O->>MD: execute(ctx)
+    activate MD
+    MD->>MCP_M: get_issuer_peers(ticker=SBER)
+    activate MCP_M
+    MCP_M-->>MD: peers_list
+    deactivate MCP_M
+    MD-->>O: SubagentResult(peers_data)
+    deactivate MD
+
+    O->>RA: execute(ctx)
+    activate RA
+    RA->>MCP_R: calculate_peers_fundamental_metrics(peers)
+    activate MCP_R
+    MCP_R-->>RA: PeersMetricsReport
+    deactivate MCP_R
+    RA-->>O: SubagentResult(metrics_data)
+    deactivate RA
+
+    O->>DS: execute(ctx)
+    activate DS
+    DS-->>O: SubagentResult(comparison_table)
+    deactivate DS
+
+    O->>EX: execute(ctx)
+    activate EX
+    EX->>FM: Генерация анализа (peers_metrics)
+    FM-->>EX: output.text
+    EX-->>O: SubagentResult(text)
+    deactivate EX
+
+    O-->>U: A2A-ответ {text, tables}
+    deactivate O
+```
 
 ---
 
@@ -100,19 +162,84 @@
 - Параметрический `var_light` на основе волатильности портфеля/референсной волатильности (`confidence_level`, `horizon_days`, `reference_volatility_pct`).  
 - Вход теперь принимает `aggregates`, `stress_scenarios` (если нужно выбрать подмножество) и `var_config`.
 
-**Цепочка MCP:**
+**Цепочка MCP (Multi-Agent):**
 
-1. Agent → `risk-analytics-mcp.analyze_portfolio_risk`
+1. OrchestratorAgent → ResearchPlannerSubagent
+   - определяет `scenario_type = portfolio_risk`, строит план.
 
+2. OrchestratorAgent → RiskAnalyticsSubagent → `risk-analytics-mcp.analyze_portfolio_risk`
    - на вход отдаётся JSON-портфель; на выходе — структурированный risk-report.
 
-2. **(опционально)** Agent → `risk-analytics-mcp.suggest_rebalance`
-
+3. **(опционально)** OrchestratorAgent → RiskAnalyticsSubagent → `risk-analytics-mcp.suggest_rebalance`
    - строит детерминированное предложение ребалансировки (без LLM-магии).
 
-3. Agent → LLM-summary
+4. OrchestratorAgent → DashboardSubagent
+   - формирует `RiskDashboardSpec` для UI.
 
+5. **(опционально)** OrchestratorAgent → KnowledgeSubagent → `kb-rag-mcp.rag_search`
+   - получает методические пояснения.
+
+6. OrchestratorAgent → ExplainerSubagent → LLM
    - упаковывает результат в понятный текст с акцентом на ключевые выводы.
+
+**Sequence Diagram (portfolio_risk):**
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant O as OrchestratorAgent
+    participant RP as ResearchPlannerSubagent
+    participant RA as RiskAnalyticsSubagent
+    participant DS as DashboardSubagent
+    participant KN as KnowledgeSubagent
+    participant EX as ExplainerSubagent
+    participant MCP_R as risk-analytics-mcp
+    participant MCP_K as kb-rag-mcp
+    participant FM as Foundation Models
+
+    U->>O: A2A-запрос (portfolio_risk)
+    activate O
+
+    O->>RP: execute(ctx)
+    activate RP
+    RP->>FM: Определить scenario_type
+    FM-->>RP: scenario_type=portfolio_risk, plan
+    RP-->>O: SubagentResult(plan)
+    deactivate RP
+
+    O->>RA: execute(ctx)
+    activate RA
+    RA->>MCP_R: analyze_portfolio_risk(positions)
+    activate MCP_R
+    MCP_R-->>RA: PortfolioRiskReport
+    deactivate MCP_R
+    RA-->>O: SubagentResult(risk_data)
+    deactivate RA
+
+    O->>DS: execute(ctx)
+    activate DS
+    DS-->>O: SubagentResult(dashboard_spec)
+    deactivate DS
+
+    opt RAG доступен
+        O->>KN: execute(ctx)
+        activate KN
+        KN->>MCP_K: rag_search(query)
+        MCP_K-->>KN: snippets
+        KN-->>O: SubagentResult(rag_snippets)
+        deactivate KN
+    end
+
+    O->>EX: execute(ctx)
+    activate EX
+    EX->>FM: Генерация текста (risk_data + rag_snippets)
+    FM-->>EX: output.text
+    EX-->>O: SubagentResult(text)
+    deactivate EX
+
+    O-->>U: A2A-ответ {text, dashboard}
+    deactivate O
+```
 
 #### Вспомогательный инструмент `compute_correlation_matrix`
 
@@ -171,15 +298,70 @@
 
 - рекомендации и предупреждения («при сценарии X риск нарушения ковенантов по…»).
 
-**Цепочка MCP:**
+**Цепочка MCP (Multi-Agent):**
 
-1. Agent → `risk-analytics-mcp.build_cfo_liquidity_report`
+1. OrchestratorAgent → ResearchPlannerSubagent
+   - определяет `scenario_type = cfo_liquidity_report`, строит план.
 
+2. OrchestratorAgent → RiskAnalyticsSubagent → `risk-analytics-mcp.build_cfo_liquidity_report`
    - агрегирует и считает всё в одном tool.
 
-2. Agent → LLM-summary (persona: CFO)
+3. OrchestratorAgent → DashboardSubagent
+   - формирует `RiskDashboardSpec` с ликвидностными виджетами.
 
+4. **(опционально)** OrchestratorAgent → KnowledgeSubagent → `kb-rag-mcp.rag_search`
+   - получает регламенты по ликвидности и ковенантам.
+
+5. OrchestratorAgent → ExplainerSubagent → LLM (persona: CFO)
    - подача в стиле «executive summary + key risks + next steps».
+
+**Sequence Diagram (cfo_liquidity_report):**
+
+```mermaid
+sequenceDiagram
+    participant U as User (CFO)
+    participant O as OrchestratorAgent
+    participant RP as ResearchPlannerSubagent
+    participant RA as RiskAnalyticsSubagent
+    participant DS as DashboardSubagent
+    participant EX as ExplainerSubagent
+    participant MCP_R as risk-analytics-mcp
+    participant FM as Foundation Models
+
+    U->>O: A2A-запрос (cfo_liquidity_report)
+    activate O
+
+    O->>RP: execute(ctx)
+    activate RP
+    RP->>FM: Определить scenario_type
+    FM-->>RP: scenario_type=cfo_liquidity_report
+    RP-->>O: SubagentResult(plan)
+    deactivate RP
+
+    O->>RA: execute(ctx)
+    activate RA
+    RA->>MCP_R: build_cfo_liquidity_report(portfolio, scenarios)
+    activate MCP_R
+    MCP_R-->>RA: CfoLiquidityReport
+    deactivate MCP_R
+    RA-->>O: SubagentResult(liquidity_data)
+    deactivate RA
+
+    O->>DS: execute(ctx)
+    activate DS
+    DS-->>O: SubagentResult(dashboard_spec)
+    deactivate DS
+
+    O->>EX: execute(ctx, persona="CFO")
+    activate EX
+    EX->>FM: Генерация executive summary
+    FM-->>EX: output.text
+    EX-->>O: SubagentResult(text)
+    deactivate EX
+
+    O-->>U: A2A-ответ {text, dashboard}
+    deactivate O
+```
 
 ---
 

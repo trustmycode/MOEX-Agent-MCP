@@ -22,7 +22,7 @@
 | 6 | `TASK-2025-103` | Стресс-сценарии и Var_light | 7/9 | Стресс-тесты в MCP | P0 | done |
 | 7 | `TASK-2025-102` | Источник фундаментала `FundamentalsDataProvider` | 5 | Данные отчетности компаний | P0 | done |
 | **II. Бизнес-логика в MCP (Tools)** |
-| 8 | `TASK-2025-108` | Tool `issuer_peers_compare` | 5 | Сравнение с пирами (MCP) | P0 | planned |
+| 8 | `TASK-2025-108` | Tool `issuer_peers_compare` | 5 | Сравнение с пирами (MCP) | P0 | done |
 | 9 | `TASK-2025-101` | Tool `suggest_rebalance` | 7 | Ребалансировка (MCP) | P0 | done |
 | 10 | `TASK-2025-105` | Tool `cfo_liquidity_report` | 9 | Отчет для CFO (MCP) | P0 | done |
 | **III. Мультиагентная Система (Agent Service)** |

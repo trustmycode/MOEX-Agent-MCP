@@ -43,3 +43,16 @@ C4Component
     Rel(mcp_server, mcp_telemetry, "Отдаёт метрики/трейсы")
     Rel(iss_client, mcp_telemetry, "Логирует HTTP-латентность и ошибки")
 ```
+
+---
+
+## Потребители MCP (Consumers)
+
+В мультиагентной архитектуре `moex-iss-mcp` используется следующими компонентами:
+
+| Потребитель | Описание | Используемые tools |
+|-------------|----------|-------------------|
+| **MarketDataSubagent** | Сабагент агента, инкапсулирует всю работу с рыночными данными | `get_security_snapshot`, `get_ohlcv_timeseries`, `get_index_constituents_metrics` |
+| **risk-analytics-mcp** | MCP-сервер риск-аналитики, использует как data-provider | `get_ohlcv_timeseries` (для расчёта корреляций, волатильности) |
+
+**Примечание:** Прямые вызовы от `OrchestratorAgent` к MCP **не допускаются**. Все взаимодействия с MCP происходят через специализированные сабагенты.
