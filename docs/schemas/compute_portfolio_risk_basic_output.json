@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ComputePortfolioRiskBasicOutput",
+  "description": "Output of risk-analytics-mcp.compute_portfolio_risk_basic.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Request metadata: dates, rebalance policy, tickers, data source.",
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "from_date": { "type": "string", "format": "date" },
+        "to_date": { "type": "string", "format": "date" },
+        "rebalance": { "type": "string", "enum": ["buy_and_hold", "monthly"] },
+        "tickers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "iss_base_url": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "per_instrument": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Per-instrument risk metrics.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ticker": { "type": "string", "description": "Ticker, e.g. SBER." },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1, "description": "Weight of the instrument (0..1)." },
+          "total_return_pct": { "type": ["number", "null"], "description": "Total return over the period, %." },
+          "annualized_volatility_pct": { "type": ["number", "null"], "description": "Annualized volatility from daily returns, %." },
+          "max_drawdown_pct": { "type": ["number", "null"], "description": "Max drawdown over the period, %." }
+        },
+        "required": ["ticker", "weight"],
+        "additionalProperties": false
+      }
+    },
+    "portfolio_metrics": {
+      "type": "object",
+      "description": "Aggregated portfolio metrics.",
+      "properties": {
+        "total_return_pct": { "type": ["number", "null"], "description": "Total portfolio return, %." },
+        "annualized_volatility_pct": { "type": ["number", "null"], "description": "Annualized portfolio volatility, %." },
+        "max_drawdown_pct": { "type": ["number", "null"], "description": "Max portfolio drawdown, %." }
+      },
+      "additionalProperties": false
+    },
+    "concentration_metrics": {
+      "type": "object",
+      "description": "Basic concentration metrics.",
+      "properties": {
+        "top1_weight_pct": { "type": ["number", "null"], "description": "Weight of top-1 position, %." },
+        "top3_weight_pct": { "type": ["number", "null"], "description": "Weight of top-3 positions, %." },
+        "top5_weight_pct": { "type": ["number", "null"], "description": "Weight of top-5 positions, %." },
+        "hhi": { "type": ["number", "null"], "description": "Herfindahl-Hirschman Index (0..1)." }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Error details if the calculation failed.",
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": ["object", "null"], "additionalProperties": true }
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "per_instrument", "portfolio_metrics", "concentration_metrics"],
+  "additionalProperties": false
+}

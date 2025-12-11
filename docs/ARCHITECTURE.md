@@ -1,3 +1,9 @@
+https://docs.ag-ui.com/introduction
+
+https://docs.ag-ui.com/drafts/generative-ui
+
+https://www.copilotkit.ai/
+
 # Архитектура moex-market-analyst-agent
 
 ## 1. Назначение и контекст

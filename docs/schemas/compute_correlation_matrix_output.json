@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ComputeCorrelationMatrixOutput",
+  "description": "Output of risk-analytics-mcp.compute_correlation_matrix.",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Request metadata and calculation details.",
+      "properties": {
+        "from_date": { "type": "string", "format": "date" },
+        "to_date": { "type": "string", "format": "date" },
+        "tickers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "method": { "type": "string" },
+        "num_observations": { "type": ["integer", "null"], "minimum": 0 },
+        "iss_base_url": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "tickers": {
+      "type": "array",
+      "description": "Tickers in calculation order.",
+      "items": { "type": "string" }
+    },
+    "matrix": {
+      "type": "array",
+      "description": "Correlation matrix (rows align with tickers).",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "description": "Error details if the calculation failed.",
+      "properties": {
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": ["object", "null"], "additionalProperties": true }
+      },
+      "required": ["error_type", "message"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["metadata", "tickers", "matrix"],
+  "additionalProperties": false
+}
