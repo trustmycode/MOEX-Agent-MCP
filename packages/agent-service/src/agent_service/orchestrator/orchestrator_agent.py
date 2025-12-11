@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -21,6 +20,8 @@ from ..core import AgentContext, SubagentRegistry, SubagentResult
 from .intent_classifier import IntentClassifier, ScenarioType
 from .models import A2AInput, A2AOutput, DebugInfo, SubagentTrace, TableData
 from .pipelines import PipelineStep, ScenarioPipeline, get_pipeline
+from .query_parser import QueryParser
+from .session_store import SessionStateStore
 
 if TYPE_CHECKING:
     from ..core import BaseSubagent
@@ -48,6 +49,9 @@ class OrchestratorAgent:
         classifier: Optional[IntentClassifier] = None,
         default_timeout: float = 30.0,
         enable_debug: bool = True,
+        query_parser: Optional[QueryParser] = None,
+        session_store: Optional[SessionStateStore] = None,
+        session_ttl_seconds: float = 900.0,
     ) -> None:
         """
         Инициализация оркестратора.
@@ -57,11 +61,16 @@ class OrchestratorAgent:
             classifier: Классификатор намерений. Если не указан, создаётся новый.
             default_timeout: Таймаут по умолчанию для шагов (секунды).
             enable_debug: Включить отладочную информацию в ответ.
+            query_parser: Парсер пользовательских запросов (rule-based/LLM).
+            session_store: Хранилище сессионных parsed_params.
+            session_ttl_seconds: TTL для сессионных данных (секунды).
         """
         self.registry = registry or SubagentRegistry()
         self.classifier = classifier or IntentClassifier()
         self.default_timeout = default_timeout
         self.enable_debug = enable_debug
+        self.query_parser = query_parser or QueryParser()
+        self.session_store = session_store or SessionStateStore(ttl_seconds=session_ttl_seconds)
 
     async def handle_request(self, a2a_input: A2AInput) -> A2AOutput:
         """
@@ -153,23 +162,46 @@ class OrchestratorAgent:
                 },
             )
 
-            # Если уже есть распарсенные параметры (например, их передал клиент),
-            # кладём их в контекст, иначе пробуем извлечь из запроса для
-            # портфельных сценариев.
-            parsed_params = (
-                a2a_input.metadata.get("parsed_params", {})
-                if a2a_input.metadata
-                else {}
-            )
+            # Подготовка parsed_params: используем сохранённое состояние сессии,
+            # данные из клиента и при необходимости — парсер.
+            parsed_params = {}
+            session_state: dict[str, Any] = {}
+            if a2a_input.session_id:
+                session_state = self.session_store.get(a2a_input.session_id)
+                if session_state:
+                    parsed_params.update(session_state)
 
-            if not parsed_params and scenario_type in (
-                ScenarioType.PORTFOLIO_RISK,
-                ScenarioType.CFO_LIQUIDITY,
-            ):
-                parsed_params = self._parse_portfolio_positions(user_query)
+            client_params = (
+                a2a_input.metadata.get("parsed_params", {}) if a2a_input.metadata else {}
+            )
+            if client_params:
+                parsed_params.update(client_params)
+
+            if scenario_type in (ScenarioType.PORTFOLIO_RISK, ScenarioType.CFO_LIQUIDITY):
+                if not parsed_params.get("positions"):
+                    parse_result = self.query_parser.parse_portfolio(user_query, allow_llm=True)
+                    if parse_result.positions:
+                        parsed_params["positions"] = parse_result.positions
+                if not parsed_params.get("positions"):
+                    hint = (
+                        "Для портфельных сценариев укажите позиции в parsed_params.positions "
+                        "или добавьте в запрос вида: \"SBER 40%, GAZP 30%, LKOH 30%\"."
+                    )
+                    return A2AOutput.error(
+                        error_message=hint,
+                        debug=self._build_debug_info(
+                            scenario_type,
+                            confidence,
+                            [],
+                            subagent_traces,
+                            start_time,
+                        ),
+                    )
 
             if parsed_params:
                 context.add_result("parsed_params", parsed_params)
+                if a2a_input.session_id:
+                    self.session_store.set(a2a_input.session_id, parsed_params)
 
             # Шаг 5: Выполнение pipeline
             result = await self._execute_pipeline(
@@ -633,64 +665,6 @@ class OrchestratorAgent:
             "К сожалению, не удалось сформировать текстовый отчёт. "
             "Проверьте наличие данных в таблицах и дашборде."
         )
-
-    @staticmethod
-    def _parse_portfolio_positions(query: str) -> dict[str, Any]:
-        """
-        Простейший парсер позиций из текста запроса.
-
-        Поддерживает форматы:
-          - "SBER 40%, GAZP 30%, LKOH 30%"
-          - "SBER 0.4, GAZP 0.3, LKOH 0.3"
-        Если веса не указаны, распределяет их равномерно.
-        """
-        if not query:
-            return {}
-
-        pattern = re.compile(r"\b([A-Z]{3,6})\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*%?", re.IGNORECASE)
-        positions: list[dict[str, Any]] = []
-
-        for match in pattern.finditer(query):
-            ticker = match.group(1).upper()
-            weight_raw = match.group(2).replace(",", ".")
-            try:
-                weight_val = float(weight_raw)
-            except ValueError:
-                continue
-
-            # Если указано в процентах (40), переводим в долю (0.4)
-            if weight_val > 1:
-                weight_val = weight_val / 100.0
-
-            positions.append({"ticker": ticker, "weight": weight_val})
-
-        if not positions:
-            # Попробуем извлечь только тикеры и распределить веса равномерно
-            ticker_pattern = re.compile(
-                r"\b(SBER|GAZP|LKOH|YNDX|GMKN|NVTK|ROSN|VTBR|MOEX)\b",
-                re.IGNORECASE,
-            )
-            tickers: list[str] = []
-            for ticker in ticker_pattern.findall(query):
-                ticker_up = ticker.upper()
-                if ticker_up not in tickers:
-                    tickers.append(ticker_up)
-
-            if not tickers:
-                return {}
-
-            equal_weight = round(1.0 / len(tickers), 4)
-            positions = [{"ticker": t, "weight": equal_weight} for t in tickers]
-
-        # Нормализуем веса, чтобы сумма была 1.0
-        total_weight = sum((p.get("weight") or 0) for p in positions)
-        if total_weight > 0:
-            positions = [
-                {**p, "weight": round((p.get("weight") or 0) / total_weight, 4)}
-                for p in positions
-            ]
-
-        return {"positions": positions}
 
     # =========================================================================
     # Вспомогательные методы для управления registry

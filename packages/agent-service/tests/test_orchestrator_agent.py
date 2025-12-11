@@ -189,6 +189,14 @@ def portfolio_risk_input() -> A2AInput:
         user_role="risk_manager",
         session_id="test-session-001",
         locale="ru",
+        metadata={
+            "parsed_params": {
+                "positions": [
+                    {"ticker": "SBER", "weight": 0.4},
+                    {"ticker": "GAZP", "weight": 0.6},
+                ]
+            }
+        },
     )
 
 
@@ -242,6 +250,20 @@ class TestHandleRequestBasic:
         assert output.status == "error"
         assert "переформулируйте" in output.text.lower() or "определить" in output.text.lower()
 
+    async def test_portfolio_without_positions_returns_hint(self, orchestrator: OrchestratorAgent):
+        """Портфельный сценарий без позиций возвращает понятную подсказку."""
+        input_data = A2AInput(
+            messages=[A2AMessage(role="user", content="Посчитай мой портфель")],
+            user_role="CFO",
+            session_id="no-positions-session",
+        )
+
+        output = await orchestrator.handle_request(input_data)
+
+        assert output.status == "error"
+        assert output.error_message is not None
+        assert "позици" in output.error_message.lower()
+
 
 class TestHandleRequestPortfolioRisk:
     """Тесты обработки portfolio_risk сценария."""
@@ -281,6 +303,25 @@ class TestHandleRequestPortfolioRisk:
         assert output.dashboard is not None
         assert "metrics" in output.dashboard
 
+    async def test_portfolio_uses_session_state(
+        self,
+        orchestrator: OrchestratorAgent,
+        portfolio_risk_input: A2AInput,
+    ):
+        """Повторный запрос в той же сессии использует сохранённые позиции."""
+        await orchestrator.handle_request(portfolio_risk_input)
+
+        input_data = A2AInput(
+            messages=[A2AMessage(role="user", content="Рассчитай мой портфель")],
+            user_role=portfolio_risk_input.user_role,
+            session_id=portfolio_risk_input.session_id,
+            locale="ru",
+        )
+
+        output = await orchestrator.handle_request(input_data)
+
+        assert output.status in ("success", "partial")
+
 
 class TestHandleRequestWithErrors:
     """Тесты обработки ошибок."""
@@ -296,7 +337,15 @@ class TestHandleRequestWithErrors:
         orchestrator = OrchestratorAgent(registry=registry)
         
         input_data = A2AInput(
-            messages=[A2AMessage(role="user", content="Оцени риск портфеля")]
+            messages=[A2AMessage(role="user", content="Оцени риск портфеля")],
+            metadata={
+                "parsed_params": {
+                    "positions": [
+                        {"ticker": "SBER", "weight": 0.5},
+                        {"ticker": "GAZP", "weight": 0.5},
+                    ]
+                }
+            },
         )
         
         output = await orchestrator.handle_request(input_data)
@@ -317,7 +366,15 @@ class TestHandleRequestWithErrors:
         orchestrator = OrchestratorAgent(registry=registry)
         
         input_data = A2AInput(
-            messages=[A2AMessage(role="user", content="Оцени риск портфеля")]
+            messages=[A2AMessage(role="user", content="Оцени риск портфеля")],
+            metadata={
+                "parsed_params": {
+                    "positions": [
+                        {"ticker": "SBER", "weight": 0.5},
+                        {"ticker": "GAZP", "weight": 0.5},
+                    ]
+                }
+            },
         )
         
         output = await orchestrator.handle_request(input_data)
@@ -335,7 +392,15 @@ class TestHandleRequestWithErrors:
         orchestrator = OrchestratorAgent(registry=registry)
         
         input_data = A2AInput(
-            messages=[A2AMessage(role="user", content="Оцени риск портфеля")]
+            messages=[A2AMessage(role="user", content="Оцени риск портфеля")],
+            metadata={
+                "parsed_params": {
+                    "positions": [
+                        {"ticker": "SBER", "weight": 0.5},
+                        {"ticker": "GAZP", "weight": 0.5},
+                    ]
+                }
+            },
         )
         
         output = await orchestrator.handle_request(input_data)
@@ -386,7 +451,15 @@ class TestDebugInfo:
         orchestrator = OrchestratorAgent(registry=registry, enable_debug=False)
         
         input_data = A2AInput(
-            messages=[A2AMessage(role="user", content="Оцени риск портфеля")]
+            messages=[A2AMessage(role="user", content="Оцени риск портфеля")],
+            metadata={
+                "parsed_params": {
+                    "positions": [
+                        {"ticker": "SBER", "weight": 0.5},
+                        {"ticker": "GAZP", "weight": 0.5},
+                    ]
+                }
+            },
         )
         
         output = await orchestrator.handle_request(input_data)

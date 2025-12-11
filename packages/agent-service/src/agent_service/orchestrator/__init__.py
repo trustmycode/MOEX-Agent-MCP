@@ -26,12 +26,17 @@ from .intent_classifier import IntentClassifier, ScenarioType
 from .models import A2AInput, A2AMessage, A2AOutput, DebugInfo
 from .orchestrator_agent import OrchestratorAgent
 from .pipelines import PipelineStep, ScenarioPipeline, get_pipeline
+from .query_parser import ParseResult, QueryParser
+from .session_store import SessionStateStore
 
 __all__ = [
     # Основные классы
     "OrchestratorAgent",
     "IntentClassifier",
     "ScenarioType",
+    "QueryParser",
+    "ParseResult",
+    "SessionStateStore",
     # Pipeline
     "ScenarioPipeline",
     "PipelineStep",

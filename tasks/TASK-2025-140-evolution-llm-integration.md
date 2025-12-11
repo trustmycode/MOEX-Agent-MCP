@@ -33,11 +33,11 @@ https://cloud.ru/docs/ai-agents/ug/topics/concepts__variables-mcp-server?source-
 
 ### Реализация клиента
 - [ ] Создан класс `EvolutionLLMClient`, реализующий протокол `LLMClient`.
-- [ ] Используется библиотека `openai` (python) или `httpx` для запросов.
+- [ ] Используется библиотека `openai` (python) для запросов.
 - [ ] Конфигурация через ENV:
   - `LLM_API_BASE`: `https://foundation-models.api.cloud.ru/v1`
   - `LLM_API_KEY`: (Secret)
-  - `LLM_MODEL`: (например, `deepseek-ai/DeepSeek-R1` или `Qwen/Qwen2.5-72B-Instruct` — уточнить доступные в каталоге).
+  - `LLM_MODEL`: (по требованиям в ARCHITECTURE.md).
 
 ### Логика работы
 - [ ] Реализован метод `generate(system_prompt, user_prompt)`.
