@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-010
 title: "Фаза 0.2. Поведение по датам и глубине истории"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 4h

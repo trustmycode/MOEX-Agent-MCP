@@ -17,7 +17,7 @@ from .exceptions import (
     TooManyTickersError,
     UnknownIssError,
 )
-from .models import DividendRecord, IndexConstituent, OhlcvBar, SecuritySnapshot
+from .models import DividendRecord, IndexConstituent, OhlcvBar, SecurityInfo, SecuritySnapshot
 from .utils import MAX_LOOKBACK_DAYS, RateLimiter
 
 __all__ = [
@@ -27,6 +27,7 @@ __all__ = [
     "OhlcvBar",
     "IndexConstituent",
     "DividendRecord",
+    "SecurityInfo",
     "IssSdkError",
     "InvalidTickerError",
     "DateRangeTooLargeError",

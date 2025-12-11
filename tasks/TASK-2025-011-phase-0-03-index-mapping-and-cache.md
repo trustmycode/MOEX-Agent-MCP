@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-011
 title: "Фаза 0.3. Спецификация индексов и кэширования"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 4h

@@ -10,6 +10,8 @@ from risk_analytics_mcp.models import (
     PortfolioRiskBasicOutput,
     PortfolioRiskInput,
     PortfolioRiskPerInstrument,
+    StressScenarioResult,
+    VarLightResult,
 )
 
 
@@ -89,10 +91,29 @@ def test_portfolio_risk_basic_output_helpers():
         per_instrument=per_instrument,
         portfolio_metrics=PortfolioMetrics(total_return_pct=5.0),
         concentration_metrics=ConcentrationMetrics(top1_weight_pct=60.0),
+        stress_results=[
+            StressScenarioResult(
+                id="equity_-10_fx_+20",
+                description="equity crash",
+                pnl_pct=-10.0,
+                drivers={"equity_weight_pct": 100.0},
+            )
+        ],
+        var_light=VarLightResult(
+            method="parametric_normal",
+            confidence_level=0.95,
+            horizon_days=1,
+            annualized_volatility_pct=15.0,
+            var_pct=2.0,
+        ),
     )
     assert output.error is None
     assert output.per_instrument[0].ticker == "SBER"
+    assert output.var_light is not None
+    assert output.stress_results
 
     errored = PortfolioRiskBasicOutput.from_error(error, metadata={"from_date": "2024-01-01"})
     assert errored.error.error_type == "INVALID_TICKER"
     assert errored.per_instrument == []
+    assert errored.var_light is None
+    assert errored.stress_results == []

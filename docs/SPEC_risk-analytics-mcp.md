@@ -175,6 +175,20 @@
 }
 ```
 
+#### Дополнения MVP (стрессы и Var_light)
+
+- **Новые входные поля**:  
+  - `aggregates` — агрегированные характеристики портфеля (дюрация, валютная структура, веса классов активов) для стресс-сценариев;  
+  - `stress_scenarios` — список id сценариев (если пусто, берутся дефолтные);  
+  - `var_config` — параметры Var_light (`confidence_level`, `horizon_days`, `reference_volatility_pct`).
+- **Новые выходные поля**:  
+  - `stress_results[]` — результат стрессов с `id`, `description`, `pnl_pct` и `drivers`;  
+  - `var_light` — параметрический VaR с указанием метода, горизонта и использованной волатильности.
+- **Преднастроенные сценарии**:  
+  - `equity_-10_fx_+20` — падение акций на 10% + ослабление базовой валюты на 20%;  
+  - `rates_+300bp` — рост ставок на 300 bps с учётом дюрации;  
+  - `credit_spreads_+150bp` — расширение кредитных спредов на 150 bps.
+
 ### 2.2. Tool: `compute_correlation_matrix`
 
 **Назначение:** построение матрицы корреляций дневных доходностей для заданных тикеров и периода.
@@ -311,3 +325,29 @@
 
 Этот процесс исключает расхождения между кодом, схемами и артефактами регистрации MCP в Evolution AI Agents.
 
+---
+
+## 5. FundamentalsDataProvider (MVP)
+
+Для сценариев 5/7/9 (`issuer_peers_compare`, `portfolio_risk`, `cfo_liquidity_report`) в
+`risk-analytics-mcp` введён слой `FundamentalsDataProvider` с реализацией
+`MoexIssFundamentalsProvider` поверх `moex_iss_sdk.IssClient`.
+
+- Базовая доменная модель: `IssuerFundamentals` (`risk_analytics_mcp.models`), включающая:
+  - идентификаторы: `ticker`, `isin`, `issuer_name`, `reporting_currency`, `as_of`;
+  - отчётные метрики (поля есть в модели, значения могут быть `null`, если ISS не даёт JSON‑данных):
+    `revenue`, `ebitda`, `ebit`, `net_income`, `total_debt`, `net_debt`,
+    производные `debt_to_ebitda`, `ev_to_ebitda`, `pe_ratio`;
+  - рыночные метрики (минимально гарантированный набор для MVP):
+    - `price` — последняя рыночная цена (из `get_security_snapshot`);
+    - `shares_outstanding` — объём выпуска (`ISSUESIZE` из `/securities/{ticker}.json`);
+    - `market_cap` — капитализация (`price * shares_outstanding`);
+    - `dividend_yield_pct` — дивидендная доходность, рассчитанная как сумма дивидендов
+      за последний год (`get_security_dividends`) / `price`;
+    - `free_float_shares`, `free_float_pct`, `enterprise_value` — поля модели, которые
+      могут быть `null` до появления стабильного источника данных.
+- Кэширование: `MoexIssFundamentalsProvider` использует in‑memory `TTLCache` (по умолчанию
+  900 секунд, настраивается `RISK_FUNDAMENTALS_CACHE_TTL_SECONDS`) на уровне агрегированных
+  `IssuerFundamentals`, поверх кэша/лимитов самого `IssClient`.
+- Все будущие инструменты и сценарии, которым нужен фундаментал, должны получать его
+  только через `FundamentalsDataProvider`, а не обращаться к MOEX ISS напрямую.

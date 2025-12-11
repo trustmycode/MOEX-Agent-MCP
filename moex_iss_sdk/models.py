@@ -89,3 +89,23 @@ class DividendRecord(IssBaseModel):
     raw: Optional[dict[str, Any]] = Field(
         default=None, description="Сырая строка ISS для трассировки (опционально)."
     )
+
+
+class SecurityInfo(IssBaseModel):
+    """
+    Статическое описание бумаги из /securities/{ticker}.json.
+
+    Используется для расчёта капитализации и вспомогательных метрик
+    (issuesize, ISIN, валюта номинала и т.п.).
+    """
+
+    ticker: str = Field(description="Код бумаги (SECID).")
+    isin: Optional[str] = Field(default=None, description="ISIN код бумаги, если доступен.")
+    issue_size: Optional[float] = Field(
+        default=None,
+        description="Объём выпуска (количество акций/паев в обращении).",
+    )
+    face_value: Optional[float] = Field(default=None, description="Номинальная стоимость.")
+    face_unit: Optional[str] = Field(default=None, description="Валюта номинала (FACEUNIT).")
+    short_name: Optional[str] = Field(default=None, description="Краткое наименование бумаги.")
+    full_name: Optional[str] = Field(default=None, description="Полное наименование бумаги.")

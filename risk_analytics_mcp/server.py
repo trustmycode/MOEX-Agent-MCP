@@ -78,6 +78,9 @@ class RiskMcpServer:
             from_date: str | None = None,
             to_date: str | None = None,
             rebalance: str = "buy_and_hold",
+            aggregates: Dict[str, Any] | None = None,
+            stress_scenarios: List[str] | None = None,
+            var_config: Dict[str, Any] | None = None,
         ) -> Dict[str, Any]:
             tool_name = "compute_portfolio_risk_basic"
             start_ts = time.perf_counter()
@@ -90,6 +93,12 @@ class RiskMcpServer:
                         "to_date": to_date,
                         "rebalance": rebalance,
                     }
+                    if aggregates is not None:
+                        payload["aggregates"] = aggregates
+                    if stress_scenarios is not None:
+                        payload["stress_scenarios"] = stress_scenarios
+                    if var_config is not None:
+                        payload["var_config"] = var_config
                     output = compute_portfolio_risk_basic_tool(
                         payload,
                         self.iss_client,

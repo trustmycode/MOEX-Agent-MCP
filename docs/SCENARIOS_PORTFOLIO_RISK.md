@@ -94,6 +94,12 @@
 
 - список «красных флагов» и рекомендаций для PM.
 
+**Реализация в `risk-analytics-mcp` (MVP):**
+
+- В `compute_portfolio_risk_basic` добавлен блок `stress_results[]` с пресетами `equity_-10_fx_+20`, `rates_+300bp`, `credit_spreads_+150bp` (используются агрегаты `aggregates.*` и дюрация).  
+- Параметрический `var_light` на основе волатильности портфеля/референсной волатильности (`confidence_level`, `horizon_days`, `reference_volatility_pct`).  
+- Вход теперь принимает `aggregates`, `stress_scenarios` (если нужно выбрать подмножество) и `var_config`.
+
 **Цепочка MCP:**
 
 1. Agent → `risk-analytics-mcp.analyze_portfolio_risk`

@@ -27,7 +27,7 @@ load_dotenv()
 
 from . import endpoints
 from .exceptions import InvalidTickerError, IssServerError, IssTimeoutError, UnknownIssError
-from .models import DividendRecord, IndexConstituent, OhlcvBar, SecuritySnapshot
+from .models import DividendRecord, IndexConstituent, OhlcvBar, SecurityInfo, SecuritySnapshot
 from .utils import MAX_LOOKBACK_DAYS, RateLimiter, TTLCache, coerce_date, parse_iss_table, utc_now, validate_date_range
 
 # Значения по умолчанию берутся из окружения, чтобы не держать их захардкоженными.
@@ -157,6 +157,65 @@ class IssClient:
         if self._cache:
             self._cache.set(cache_key, snapshot)
         return snapshot
+
+    def get_security_info(self, ticker: str) -> SecurityInfo:
+        """
+        Получить статическое описание бумаги из /securities/{ticker}.json.
+
+        Используется, в частности, для расчёта капитализации и вспомогательных
+        метрик (issuesize, ISIN, валюта номинала и т.п.).
+
+        Args:
+            ticker: Тикер бумаги (SECID).
+
+        Returns:
+            Объект SecurityInfo с основными полями описания.
+
+        Raises:
+            InvalidTickerError: если ISS не вернул секцию description.
+            IssTimeoutError | IssServerError | UnknownIssError: ошибки транспорта.
+        """
+        cache_key = f"security_info::{ticker}"
+        if self._cache:
+            cached = self._cache.get(cache_key)
+            if cached:
+                return cached
+
+        spec = endpoints.build_security_description_endpoint(
+            ticker=ticker,
+            base_url=self.settings.base_url,
+        )
+        payload = self._get_json(spec)
+        rows = parse_iss_table(payload.get("description"))
+        if not rows:
+            raise InvalidTickerError(f"No ISS description rows for {ticker}", details={"ticker": ticker})
+
+        # Преобразуем в словарь name -> value
+        by_name: Dict[str, Any] = {}
+        for row in rows:
+            name = str(row.get("name") or row.get("NAME") or "").upper()
+            if not name:
+                continue
+            by_name[name] = row
+
+        def _value(name: str) -> Any:
+            entry = by_name.get(name.upper())
+            if not entry:
+                return None
+            return entry.get("value") if "value" in entry else entry.get("VALUE")
+
+        info = SecurityInfo(
+            ticker=ticker,
+            isin=_value("ISIN"),
+            issue_size=_maybe_float(_value("ISSUESIZE")),
+            face_value=_maybe_float(_value("FACEVALUE")),
+            face_unit=_value("FACEUNIT"),
+            short_name=_value("SHORTNAME"),
+            full_name=_value("NAME"),
+        )
+        if self._cache:
+            self._cache.set(cache_key, info)
+        return info
 
     def get_ohlcv_series(
         self,

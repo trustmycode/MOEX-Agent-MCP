@@ -34,6 +34,8 @@ def test_compute_portfolio_risk_basic_core_success():
     assert output.portfolio_metrics.total_return_pct == pytest.approx(5.0)
     assert output.per_instrument[0].total_return_pct == pytest.approx(5.0)
     assert output.concentration_metrics.top1_weight_pct == pytest.approx(50.0)
+    assert output.stress_results  # default scenarios are calculated
+    assert output.var_light is not None
 
 
 def test_compute_portfolio_risk_basic_tool_limits_error():

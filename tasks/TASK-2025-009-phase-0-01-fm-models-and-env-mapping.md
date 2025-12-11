@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-009
 title: "Фаза 0.1. FM-модели и ENV mapping"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 4h

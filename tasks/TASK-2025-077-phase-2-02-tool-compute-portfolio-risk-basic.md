@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-077
 title: "Фаза 2.2. Tool compute_portfolio_risk_basic"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 24h

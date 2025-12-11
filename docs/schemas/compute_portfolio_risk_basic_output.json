@@ -58,6 +58,38 @@
       },
       "additionalProperties": false
     },
+    "stress_results": {
+      "type": "array",
+      "description": "Stress scenarios with estimated P&L.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Scenario identifier." },
+          "description": { "type": "string", "description": "Human readable scenario description." },
+          "pnl_pct": { "type": "number", "description": "Estimated P&L under scenario, % of portfolio." },
+          "drivers": {
+            "type": "object",
+            "description": "Key shocks/weights used in the estimation.",
+            "additionalProperties": { "type": "number" }
+          }
+        },
+        "required": ["id", "description", "pnl_pct"],
+        "additionalProperties": false
+      }
+    },
+    "var_light": {
+      "type": ["object", "null"],
+      "description": "Parametric VaR-light block.",
+      "properties": {
+        "method": { "type": "string" },
+        "confidence_level": { "type": "number" },
+        "horizon_days": { "type": "integer" },
+        "annualized_volatility_pct": { "type": "number" },
+        "var_pct": { "type": "number" }
+      },
+      "required": ["method", "confidence_level", "horizon_days", "annualized_volatility_pct", "var_pct"],
+      "additionalProperties": false
+    },
     "error": {
       "type": ["object", "null"],
       "description": "Error details if the calculation failed.",
@@ -70,6 +102,6 @@
       "additionalProperties": true
     }
   },
-  "required": ["metadata", "per_instrument", "portfolio_metrics", "concentration_metrics"],
+  "required": ["metadata", "per_instrument", "portfolio_metrics", "concentration_metrics", "stress_results", "var_light"],
   "additionalProperties": false
 }

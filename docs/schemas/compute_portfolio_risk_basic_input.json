@@ -49,6 +49,45 @@
       "enum": ["buy_and_hold", "monthly"],
       "default": "buy_and_hold",
       "description": "Rebalancing policy: buy_and_hold (default) or monthly."
+    },
+    "aggregates": {
+      "type": ["object", "null"],
+      "description": "Aggregated portfolio characteristics used for stress tests.",
+      "properties": {
+        "base_currency": { "type": "string", "minLength": 1, "maxLength": 8 },
+        "asset_class_weights": {
+          "type": "object",
+          "description": "Weights by asset class (equity, fixed_income, credit).",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "fx_exposure_weights": {
+          "type": "object",
+          "description": "Currency weights for FX exposure.",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "fixed_income_duration_years": { "type": ["number", "null"], "minimum": 0 },
+        "credit_spread_duration_years": { "type": ["number", "null"], "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "stress_scenarios": {
+      "type": "array",
+      "description": "Optional explicit list of stress scenario ids to run.",
+      "items": {
+        "type": "string",
+        "enum": ["equity_-10_fx_+20", "rates_+300bp", "credit_spreads_+150bp"]
+      }
+    },
+    "var_config": {
+      "type": "object",
+      "description": "Parameters for Var_light calculation.",
+      "properties": {
+        "confidence_level": { "type": "number", "minimum": 0.8, "maximum": 0.999, "default": 0.95 },
+        "horizon_days": { "type": "integer", "minimum": 1, "maximum": 60, "default": 1 },
+        "reference_volatility_pct": { "type": ["number", "null"], "minimum": 0 },
+        "method": { "type": "string", "enum": ["parametric_normal"], "default": "parametric_normal" }
+      },
+      "additionalProperties": false
     }
   },
   "required": ["positions", "from_date", "to_date"],

@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-099
 title: "Фаза 2.4.2. Формирование tools.json для risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 4h
@@ -14,6 +14,7 @@ risk: low
 benefit: "Готовит корректный tools.json для регистрации risk-analytics-mcp в Evolution AI Agents."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after creating tools.json with risk tools and schema refs"}
 ---
 
 ## Описание
@@ -45,4 +46,3 @@ audit_log:
 
 - При добавлении новых инструментов MCP файл `tools.json` должен
   обновляться по понятной процедуре (зафиксированной в документации).
-

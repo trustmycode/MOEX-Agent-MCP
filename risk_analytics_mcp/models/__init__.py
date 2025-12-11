@@ -1,17 +1,105 @@
 """
 Pydantic-модели для инструментов risk-analytics-mcp.
 
-Модели согласованы с черновым SPEC risk-analytics-mcp и предназначены
-для обмена данными между MCP-слоем и расчётным модулем.
+Модели согласованы с SPEC risk-analytics-mcp и предназначены
+для обмена данными между MCP-слоем, расчётным модулем и вспомогательными
+провайдерами (такими как FundamentalsDataProvider).
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from moex_iss_mcp.error_mapper import ToolErrorModel
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class PortfolioAggregates(BaseModel):
+    """
+    Агрегированные характеристики портфеля для стресс-сценариев.
+    """
+
+    base_currency: str = Field(default="RUB", min_length=1, max_length=8, description="Базовая валюта портфеля.")
+    asset_class_weights: dict[str, float] = Field(
+        default_factory=dict,
+        description="Доли классов активов (equity, fixed_income, credit и т.п.), 0..1.",
+    )
+    fx_exposure_weights: dict[str, float] = Field(
+        default_factory=dict,
+        description="Валютная структура портфеля: доля в каждой валюте, 0..1.",
+    )
+    fixed_income_duration_years: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Эффективная дюрация долгового портфеля (годы) для ставки +bps.",
+    )
+    credit_spread_duration_years: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Дюрация по кредитным спрэдам (годы) для сценария credit spreads.",
+    )
+
+    @field_validator("base_currency")
+    @classmethod
+    def normalize_currency(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("base_currency cannot be empty")
+        return normalized
+
+    @field_validator("asset_class_weights", "fx_exposure_weights")
+    @classmethod
+    def validate_weight_map(cls, value: dict[str, float]) -> dict[str, float]:
+        cleaned: dict[str, float] = {}
+        for key, weight in value.items():
+            if weight is None:
+                continue
+            if weight < 0:
+                raise ValueError("Weights must be non-negative")
+            cleaned[key.strip().lower()] = float(weight)
+        return cleaned
+
+
+class VarLightConfig(BaseModel):
+    """
+    Параметры расчёта лёгкого VaR (Var_light).
+    """
+
+    confidence_level: float = Field(default=0.95, ge=0.8, le=0.999, description="Уровень доверия, например 0.95.")
+    horizon_days: int = Field(default=1, ge=1, le=60, description="Горизонт в днях для Var_light.")
+    reference_volatility_pct: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description="Опциональная годовая волатильность, если портфельная не доступна.",
+    )
+    method: Literal["parametric_normal"] = Field(
+        default="parametric_normal",
+        description="Метод оценки (сейчас фиксирован parametric_normal).",
+    )
+
+
+class StressScenarioResult(BaseModel):
+    """
+    Результат стресс-сценария.
+    """
+
+    id: str = Field(description="Идентификатор стресс-сценария.")
+    description: str = Field(description="Описание сценария.")
+    pnl_pct: float = Field(description="Оценка P&L портфеля при сценарии, % от стоимости портфеля.")
+    drivers: dict[str, float] = Field(default_factory=dict, description="Ключевые шоки/веса, использованные в оценке.")
+
+
+class VarLightResult(BaseModel):
+    """
+    Результат расчёта Var_light.
+    """
+
+    method: str = Field(default="parametric_normal", description="Метод расчёта Var_light.")
+    confidence_level: float = Field(description="Уровень доверия (0..1).")
+    horizon_days: int = Field(description="Горизонт в днях.")
+    annualized_volatility_pct: float = Field(description="Годовая волатильность, использованная в оценке, %.")  # noqa: E501
+    var_pct: float = Field(description="Parametric VaR, % от стоимости портфеля.")
 
 
 class PortfolioPosition(BaseModel):
@@ -53,6 +141,18 @@ class PortfolioRiskInput(BaseModel):
     rebalance: Literal["buy_and_hold", "monthly"] = Field(
         default="buy_and_hold",
         description="Стратегия ребалансировки: buy_and_hold или ежемесячная фиксация весов.",
+    )
+    aggregates: Optional[PortfolioAggregates] = Field(
+        default=None,
+        description="Агрегированные характеристики портфеля для стрессов (дюрация, валюты, классы активов).",
+    )
+    stress_scenarios: list[str] = Field(
+        default_factory=list,
+        description="Список id стресс-сценариев для расчёта (пусто — использовать дефолтные).",
+    )
+    var_config: VarLightConfig = Field(
+        default_factory=VarLightConfig,
+        description="Параметры для расчёта Var_light (уровень доверия, горизонт, референсная волатильность).",
     )
 
     @field_validator("to_date")
@@ -123,6 +223,13 @@ class PortfolioRiskBasicOutput(BaseModel):
     per_instrument: list[PortfolioRiskPerInstrument] = Field(description="Метрики по каждой бумаге.")  # noqa: E501
     portfolio_metrics: PortfolioMetrics = Field(description="Агрегированные метрики портфеля.")
     concentration_metrics: ConcentrationMetrics = Field(description="Концентрационные метрики.")
+    stress_results: list[StressScenarioResult] = Field(
+        default_factory=list, description="Результаты по стресс-сценариям (id, описание, P&L)."
+    )
+    var_light: Optional[VarLightResult] = Field(
+        default=None,
+        description="Параметрический Var_light с параметрами расчёта.",
+    )
     error: Optional[ToolErrorModel] = Field(default=None, description="Информация об ошибке, если расчёт не удался.")  # noqa: E501
 
     @classmethod
@@ -133,12 +240,16 @@ class PortfolioRiskBasicOutput(BaseModel):
         per_instrument: list[PortfolioRiskPerInstrument],
         portfolio_metrics: PortfolioMetrics,
         concentration_metrics: ConcentrationMetrics,
+        stress_results: list[StressScenarioResult],
+        var_light: Optional[VarLightResult],
     ) -> "PortfolioRiskBasicOutput":
         return cls(
             metadata=metadata,
             per_instrument=per_instrument,
             portfolio_metrics=portfolio_metrics,
             concentration_metrics=concentration_metrics,
+            stress_results=stress_results,
+            var_light=var_light,
             error=None,
         )
 
@@ -149,6 +260,8 @@ class PortfolioRiskBasicOutput(BaseModel):
             per_instrument=[],
             portfolio_metrics=PortfolioMetrics(),
             concentration_metrics=ConcentrationMetrics(),
+            stress_results=[],
+            var_light=None,
             error=error,
         )
 
@@ -205,7 +318,81 @@ class CorrelationMatrixOutput(BaseModel):
         return cls(metadata=metadata or {}, tickers=[], matrix=[], error=error)
 
 
+class IssuerFundamentals(BaseModel):
+    """
+    Нормализованный набор фундаментальных и рыночных метрик по эмитенту.
+
+    Модель используется провайдером FundamentalsDataProvider и инструментами,
+    работающими со сценариями issuer_peers_compare / portfolio_risk / cfo_liquidity_report.
+    """
+
+    ticker: str = Field(min_length=1, max_length=32, description="Ticker, e.g. SBER.")
+    isin: Optional[str] = Field(default=None, description="ISIN код бумаги, если доступен.")
+    issuer_name: Optional[str] = Field(default=None, description="Название эмитента по данным MOEX.")
+    reporting_currency: Optional[str] = Field(
+        default="RUB",
+        description="Валюта отчётности/метрик (для MVP обычно RUB).",
+    )
+    as_of: Optional[datetime] = Field(
+        default=None,
+        description="Момент времени, на который актуальны рыночные метрики.",
+    )
+
+    # Базовые отчётные показатели (последний период)
+    revenue: Optional[float] = Field(default=None, description="Выручка за последний отчётный период.")
+    ebitda: Optional[float] = Field(default=None, description="EBITDA за последний отчётный период.")
+    ebit: Optional[float] = Field(default=None, description="EBIT за последний отчётный период.")
+    net_income: Optional[float] = Field(default=None, description="Чистая прибыль за последний отчётный период.")
+    total_debt: Optional[float] = Field(default=None, description="Совокупный долг.")
+    net_debt: Optional[float] = Field(default=None, description="Чистый долг.")
+
+    # Рыночные показатели
+    price: Optional[float] = Field(default=None, description="Текущая рыночная цена одной акции.")
+    shares_outstanding: Optional[float] = Field(
+        default=None,
+        description="Количество акций в обращении (issuesize).",
+    )
+    free_float_shares: Optional[float] = Field(
+        default=None,
+        description="Количество акций в свободном обращении.",
+    )
+    free_float_pct: Optional[float] = Field(
+        default=None,
+        description="Доля free float в капитале, %.",
+    )
+    market_cap: Optional[float] = Field(default=None, description="Рыночная капитализация (price * shares).")
+    enterprise_value: Optional[float] = Field(default=None, description="Enterprise Value.")
+
+    # Мультипликаторы и производные метрики
+    pe_ratio: Optional[float] = Field(default=None, description="P/E мультипликатор.")
+    ev_to_ebitda: Optional[float] = Field(default=None, description="EV/EBITDA мультипликатор.")
+    debt_to_ebitda: Optional[float] = Field(default=None, description="Долг/EBITDA.")
+    dividend_yield_pct: Optional[float] = Field(default=None, description="Дивидендная доходность, %.")
+
+    source: str = Field(
+        default="moex-iss",
+        description="Источник данных (по умолчанию moex-iss через moex_iss_sdk).",
+    )
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        normalized = (value or "").strip().upper()
+        if not normalized:
+            raise ValueError("ticker cannot be empty")
+        return normalized
+
+    @field_validator("reporting_currency")
+    @classmethod
+    def normalize_currency(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+
 __all__ = [
+    "PortfolioAggregates",
     "PortfolioPosition",
     "PortfolioRiskInput",
     "PortfolioRiskPerInstrument",
@@ -214,4 +401,8 @@ __all__ = [
     "PortfolioRiskBasicOutput",
     "CorrelationMatrixInput",
     "CorrelationMatrixOutput",
+    "StressScenarioResult",
+    "VarLightConfig",
+    "VarLightResult",
+    "IssuerFundamentals",
 ]

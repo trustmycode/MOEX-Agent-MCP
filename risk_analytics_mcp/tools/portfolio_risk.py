@@ -19,9 +19,12 @@ from ..calculations import (
     calc_annualized_volatility_pct,
     calc_max_drawdown_pct,
     calc_total_return_pct,
+    compute_var_light,
+    run_stress_scenarios,
 )
 from ..models import (
     ConcentrationMetrics,
+    PortfolioAggregates,
     PortfolioMetrics,
     PortfolioPosition,
     PortfolioRiskBasicOutput,
@@ -76,8 +79,22 @@ def _per_instrument_metrics(
                 annualized_volatility_pct=calc_annualized_volatility_pct(series),
                 max_drawdown_pct=calc_max_drawdown_pct(series),
             )
-        )
+    )
     return items
+
+
+def _resolve_aggregates(input_model: PortfolioRiskInput) -> PortfolioAggregates:
+    aggregates = input_model.aggregates or PortfolioAggregates()
+    asset_class_weights = aggregates.asset_class_weights or {"equity": 1.0}
+    fx_exposure_weights = aggregates.fx_exposure_weights or {}
+
+    return PortfolioAggregates(
+        base_currency=aggregates.base_currency,
+        asset_class_weights=asset_class_weights,
+        fx_exposure_weights=fx_exposure_weights,
+        fixed_income_duration_years=aggregates.fixed_income_duration_years,
+        credit_spread_duration_years=aggregates.credit_spread_duration_years,
+    )
 
 
 def compute_portfolio_risk_basic_core(
@@ -107,6 +124,10 @@ def compute_portfolio_risk_basic_core(
     portfolio_returns = aggregate_portfolio_returns(returns_by_ticker, weight_map, rebalance=input_model.rebalance)
     portfolio_metrics = PortfolioMetrics(**calc_basic_portfolio_metrics([value for _, value in portfolio_returns]))
     concentration_metrics = ConcentrationMetrics(**calc_concentration_metrics(weight_map))
+    aggregates = _resolve_aggregates(input_model)
+
+    stress_results = run_stress_scenarios(aggregates, input_model.stress_scenarios or None)
+    var_light = compute_var_light(portfolio_metrics.annualized_volatility_pct, input_model.var_config)
 
     metadata = {
         "as_of": utc_now().isoformat(),
@@ -115,6 +136,11 @@ def compute_portfolio_risk_basic_core(
         "rebalance": input_model.rebalance,
         "tickers": list(weight_map.keys()),
         "iss_base_url": iss_client.settings.base_url,
+        "stress_scenarios": [result.id for result in stress_results],
+        "var_light_params": {
+            "confidence_level": input_model.var_config.confidence_level,
+            "horizon_days": input_model.var_config.horizon_days,
+        },
     }
 
     return PortfolioRiskBasicOutput.success(
@@ -122,6 +148,8 @@ def compute_portfolio_risk_basic_core(
         per_instrument=per_instrument,
         portfolio_metrics=portfolio_metrics,
         concentration_metrics=concentration_metrics,
+        stress_results=stress_results,
+        var_light=var_light,
     )
 
 

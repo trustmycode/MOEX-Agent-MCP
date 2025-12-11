@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-002
 title: "Фаза 1. Базовый MCP moex-iss-mcp"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 24h

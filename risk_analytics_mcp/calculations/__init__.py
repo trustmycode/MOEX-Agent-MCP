@@ -19,6 +19,12 @@ from .returns import (
     compute_daily_returns,
     normalize_weights,
 )
+from .stress_var import (
+    DEFAULT_FALLBACK_VOLATILITY_PCT,
+    DEFAULT_SCENARIOS,
+    compute_var_light,
+    run_stress_scenarios,
+)
 
 __all__ = [
     "DailyReturn",
@@ -35,4 +41,8 @@ __all__ = [
     "compute_correlation_matrix",
     "InsufficientDataError",
     "normalize_weights",
+    "DEFAULT_FALLBACK_VOLATILITY_PCT",
+    "DEFAULT_SCENARIOS",
+    "run_stress_scenarios",
+    "compute_var_light",
 ]

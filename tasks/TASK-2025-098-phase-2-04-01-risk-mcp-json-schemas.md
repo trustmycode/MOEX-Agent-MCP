@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-098
 title: "Фаза 2.4.1. JSON Schema для инструментов risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 6h
@@ -14,6 +14,7 @@ risk: low
 benefit: "Формализует входы/выходы compute_portfolio_risk_basic и compute_correlation_matrix в виде JSON Schema."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after adding JSON Schemas for risk tools and documenting them in SPEC"}
 ---
 
 ## Описание
@@ -42,4 +43,3 @@ audit_log:
 
 - При изменении моделей инструментов в будущем необходимо
   синхронно обновлять и JSON Schema.
-

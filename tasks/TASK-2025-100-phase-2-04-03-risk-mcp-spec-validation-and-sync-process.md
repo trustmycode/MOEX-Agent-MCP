@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-100
 title: "Фаза 2.4.3. Валидация SPEC/tools.json и процесс синхронизации risk-analytics-mcp"
-status: backlog
+status: done
 priority: medium
 type: chore
 estimate: 6h
@@ -14,6 +14,7 @@ risk: low
 benefit: "Обеспечивает согласованность Pydantic-моделей, JSON Schema и tools.json для risk-analytics-mcp и описывает процесс их обновления."
 audit_log:
   - {date: 2025-12-10, user: "@AI-DocArchitect", action: "created with status backlog"}
+  - {date: 2025-12-10, user: "@codex", action: "marked as done after documenting validation/sync process and adding schema/tools checks"}
 ---
 
 ## Описание
@@ -42,4 +43,3 @@ audit_log:
 
 - При наличии времени можно добавить простой скрипт/CI-проверку для
   автоматической валидации схем.
-

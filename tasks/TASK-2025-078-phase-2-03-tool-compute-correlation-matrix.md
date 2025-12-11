@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-078
 title: "Фаза 2.3. Tool compute_correlation_matrix"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 20h

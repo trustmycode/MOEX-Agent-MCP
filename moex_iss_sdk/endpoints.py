@@ -115,3 +115,20 @@ def build_dividends_endpoint(
         "iss.meta": "off",
     }
     return EndpointSpec(url=url, params=params)
+
+
+def build_security_description_endpoint(
+    ticker: str,
+    *,
+    base_url: str = DEFAULT_BASE_URL,
+) -> EndpointSpec:
+    """
+    Построить эндпоинт для описания бумаги (`/securities/{ticker}.json`).
+
+    Секция `description` содержит мета‑информацию об инструменте, включая
+    ISIN, объём выпуска (ISSUESIZE), номинал и валюту номинала.
+    """
+    path = f"securities/{ticker}.json"
+    url = urljoin(base_url, path)
+    params = {"iss.meta": "off"}
+    return EndpointSpec(url=url, params=params)

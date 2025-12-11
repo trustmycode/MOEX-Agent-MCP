@@ -28,6 +28,20 @@ https://www.copilotkit.ai/
 
 ## 2. Бизнес-сценарии и пользователи
 
+### 2.0. Внешний агент и внутренние сабагенты
+
+С точки зрения платформы Evolution AI Agents существует **один внешний A2A-агент** `moex-market-analyst-agent`.  
+Внутри он реализован через набор логических сабагентов, которые соответствуют компонентам на C4 L3/L4:
+
+- `ResearchPlannerSubagent` — определяет `scenario_type` по запросу пользователя (single_security_overview, compare_securities, index_risk_scan, portfolio_risk_basic, сценарии 5/7/9 и RAG‑сценарии), строит план действий и ограничивает его согласно basic‑режиму планировщика.
+- `MarketDataSubagent` — инкапсулирует всю работу с `moex-iss-mcp`: котировки, OHLCV‑ряды, состав индексов, справочники; следит за правилами по датам и ограничениями глубины истории.
+- `RiskAnalyticsSubagent` — обёртка над `risk-analytics-mcp`, отвечает за расчёт портфельного риска, корреляций, стресс‑сценариев, Var_light и связанных отчётов (включая сценарии 5/7/9).
+- `DashboardSubagent` — формирует структурированный JSON‑дашборд риска (`RiskDashboardSpec`) на основе данных от MarketDataSubagent и RiskAnalyticsSubagent; этот JSON используется фронтендом/AGI UI как конфигурация экрана «Risk Cockpit».
+- `ExplainerSubagent` — генерирует человекочитаемый текстовый отчёт (`output.text`), интерпретирует метрики и дашборд для разных ролей (CFO, риск‑менеджер и т.п.), объединяет численные данные и текстовый контекст (включая RAG при наличии).
+- `KnowledgeSubagent` — тонкий слой над `kb-rag-mcp`, формирует запросы к базе знаний (методики, регламенты, прошлые отчёты, новости/аналитика по тикерам), возвращает snippets для ExplainerSubagent.
+
+Снаружи (в Agent Card и A2A‑контракте) все сабагенты скрыты за одним идентификатором агента; внутри они позволяют чётко разделить ответственность и использовать возможности AGI UI (поддержка sub‑agents и композиции).
+
 ### 2.1. Целевая аудитория
 
 - CFO / финансовый директор.
@@ -119,17 +133,26 @@ C4Context
     Person(user, "Бизнес-пользователь", "CFO, риск-менеджер, аналитик")
 
     System_Boundary(sys, "moex-market-analyst-agent") {
-        Container(agent, "AI Agent (A2A)", "Python + ADK/A2A SDK", "Интерпретирует запросы, планирует шаги, вызывает MCP-tools, формирует ответ.")
+        Container(agent, "AI Agent (A2A)", "Python + ADK/A2A SDK", "Интерпретирует запросы, планирует шаги, вызывает MCP-tools, формирует текстовый ответ и Risk Dashboard.")
         Container(mcp_moex, "moex-iss-mcp", "Python + FastMCP", "Кастомный MCP-сервер поверх MOEX ISS API (1–3 business-tools).")
         Container(mcp_risk, "risk-analytics-mcp", "Python + FastMCP", "Расчёты портфельного риска, ребалансировки и CFO-ликвидности по JSON-схемам.")
-        Container(mcp_rag, "kb-rag-mcp (опционально)", "MCP RAG", "Доступ к базе знаний: регламенты, методички, пояснения.")
+        Container(mcp_rag, "kb-rag-mcp (опционально)", "MCP RAG", "Доступ к базе знаний: регламенты, методички, пояснения, выдержки новостей.")
         Container(monitoring, "Telemetry", "Phoenix / OTEL / Prometheus", "Трейсы и метрики агента и MCP.")
+    }
+
+    System_Boundary(voice, "Voice Gateway (v2+)") {
+        System(voice_gateway, "Voice Gateway", "ASR/TTS Proxy", "Принимает аудио от Web UI, вызывает ASR (Whisper), проксирует текст в A2A-агента и обратно.")
     }
 
     System_Ext(fm, "Evolution Foundation Models API", "Cloud.ru", "LLM, используемая агентом.")
     System_Ext(moex_iss, "MOEX ISS API", "HTTP JSON API", "Публичный API Московской биржи.")
+    System_Ext(asr, "ASR (Whisper v3)", "Cloud.ru Foundation Models", "Распознавание речи для голосового интерфейса.")
 
     Rel(user, agent, "NL-запросы", "A2A UI Evolution / интеграции")
+    Rel(user, voice_gateway, "Голосовые запросы (v2+)", "Web UI → Voice Gateway (audio)")
+    Rel(voice_gateway, asr, "Распознавание речи", "FM ASR API")
+    Rel(voice_gateway, agent, "A2A-запросы/ответы", "HTTP + JSON")
+
     Rel(agent, fm, "POST /chat/completions", "LLM_API_BASE=https://foundation-models.api.cloud.ru/v1")
     Rel(agent, mcp_moex, "MCP (streamable-http)", "MCP_URL")
     Rel(agent, mcp_risk, "MCP (streamable-http)", "MCP_URL")

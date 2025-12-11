@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-079
 title: "Фаза 2.4. SPEC и tools.json для risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: chore
 estimate: 8h

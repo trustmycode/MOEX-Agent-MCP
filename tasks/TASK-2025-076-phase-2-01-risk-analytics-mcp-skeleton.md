@@ -1,7 +1,7 @@
 ---
 id: TASK-2025-076
 title: "Фаза 2.1. Каркас MCP risk-analytics-mcp"
-status: backlog
+status: done
 priority: high
 type: feature
 estimate: 16h
