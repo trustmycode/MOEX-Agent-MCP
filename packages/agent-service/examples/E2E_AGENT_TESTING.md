@@ -384,3 +384,4 @@ echo "risk-analytics-mcp:"; curl -s http://localhost:8010/health | jq -r '.statu
 - [README.md](./README.md) — краткая инструкция
 - [SPEC_risk-analytics-mcp.md](../../../docs/SPEC_risk-analytics-mcp.md) — спецификация risk-analytics-mcp
 
+

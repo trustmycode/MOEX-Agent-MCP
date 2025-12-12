@@ -459,3 +459,4 @@ class TestE2ERealWorldPortfolios:
         # Проверяем, что хотя бы уменьшилось (было 20%, стало <=23%)
         assert equity_weight <= 0.25
 
+

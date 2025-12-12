@@ -250,8 +250,9 @@ async def handle_agui(run_input: AguiRunInput):
             return
 
         try:
+            # A2AInput требует поле messages — формируем его из user_query
             a2a = A2AInput(
-                user_query=user_query,
+                messages=[{"role": "user", "content": user_query}],
                 session_id=thread_id,
                 locale=(run_input.state.get("locale") if isinstance(run_input.state, dict) else None) or "ru",
                 user_role=(run_input.state.get("user_role") if isinstance(run_input.state, dict) else None) or "analyst",

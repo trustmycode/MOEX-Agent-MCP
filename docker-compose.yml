@@ -1,7 +1,6 @@
 services:
   moex-iss-mcp:
     image: moex-iss-mcp:local
-    platform: linux/amd64
     build:
       context: .
       dockerfile: moex_iss_mcp/Dockerfile
@@ -19,7 +18,6 @@ services:
 
   risk-analytics-mcp:
     image: risk-analytics-mcp:local
-    platform: linux/amd64
     build:
       context: .
       dockerfile: risk_analytics_mcp/Dockerfile
@@ -40,7 +38,6 @@ services:
 
   agent:
     image: moex-market-analyst-agent:local
-    platform: linux/amd64
     build:
       context: .
       dockerfile: packages/agent-service/Dockerfile
@@ -66,7 +63,6 @@ services:
 
   web:
     image: moex-web:local
-    platform: linux/amd64
     build:
       context: ./apps/web
       dockerfile: Dockerfile

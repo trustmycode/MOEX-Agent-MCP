@@ -191,7 +191,9 @@ class DashboardSubagent(BaseSubagent):
     ) -> DashboardMetadata:
         """Собрать метаданные дашборда."""
         # Пытаемся получить as_of из данных
-        metadata = risk_data.get("metadata", {})
+        metadata = risk_data.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
         as_of_str = metadata.get("as_of")
 
         if as_of_str:
@@ -213,7 +215,9 @@ class DashboardSubagent(BaseSubagent):
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
         """Добавить основные метрики портфеля."""
-        portfolio_metrics = risk_data.get("portfolio_metrics", {})
+        portfolio_metrics = risk_data.get("portfolio_metrics") or {}
+        if not isinstance(portfolio_metrics, dict):
+            portfolio_metrics = {}
 
         # Доходность
         total_return = portfolio_metrics.get("total_return_pct")
@@ -270,7 +274,9 @@ class DashboardSubagent(BaseSubagent):
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
         """Добавить метрики концентрации."""
-        concentration = risk_data.get("concentration_metrics", {})
+        concentration = risk_data.get("concentration_metrics") or {}
+        if not isinstance(concentration, dict):
+            concentration = {}
 
         # Top-1 концентрация
         top1 = concentration.get("top1_weight_pct")
@@ -316,7 +322,10 @@ class DashboardSubagent(BaseSubagent):
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
         """Добавить метрики VaR."""
-        var_light = risk_data.get("var_light", {})
+        # var_light может прийти как None при деградации risk_analytics
+        var_light = risk_data.get("var_light") or {}
+        if not isinstance(var_light, dict):
+            var_light = {}
 
         var_pct = var_light.get("var_pct")
         if var_pct is not None:
@@ -355,13 +364,17 @@ class DashboardSubagent(BaseSubagent):
 
         rows = []
         for instr in per_instrument:
-            weight = instr.get("weight", 0) * 100  # Конвертируем в проценты
+            weight_raw = instr.get("weight")
+            try:
+                weight = float(weight_raw) * 100  # Конвертируем в проценты
+            except (TypeError, ValueError):
+                weight = 0.0
             row = [
                 str(instr.get("ticker", "")),
                 f"{weight:.1f}",
-                f"{instr.get('total_return_pct', 0):.2f}",
-                f"{instr.get('annualized_volatility_pct', 0):.2f}",
-                f"{instr.get('max_drawdown_pct', 0):.2f}",
+                f"{float(instr.get('total_return_pct') or 0):.2f}",
+                f"{float(instr.get('annualized_volatility_pct') or 0):.2f}",
+                f"{float(instr.get('max_drawdown_pct') or 0):.2f}",
             ]
             rows.append(row)
 
@@ -392,7 +405,7 @@ class DashboardSubagent(BaseSubagent):
             row = [
                 str(stress.get("id", "")),
                 str(stress.get("description", "")),
-                f"{stress.get('pnl_pct', 0):.2f}",
+                f"{float(stress.get('pnl_pct') or 0):.2f}",
             ]
             rows.append(row)
 
@@ -429,7 +442,9 @@ class DashboardSubagent(BaseSubagent):
             )
 
         # Добавляем ссылку на equity curve, если есть time_series
-        time_series = risk_data.get("time_series", {})
+        time_series = risk_data.get("time_series") or {}
+        if not isinstance(time_series, dict):
+            time_series = {}
         if time_series.get("portfolio_value"):
             dashboard.charts.append(
                 ChartSpec(
@@ -454,9 +469,15 @@ class DashboardSubagent(BaseSubagent):
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
         """Генерировать алерты на основе метрик."""
-        concentration = risk_data.get("concentration_metrics", {})
-        var_light = risk_data.get("var_light", {})
-        portfolio_metrics = risk_data.get("portfolio_metrics", {})
+        concentration = risk_data.get("concentration_metrics") or {}
+        if not isinstance(concentration, dict):
+            concentration = {}
+        var_light = risk_data.get("var_light") or {}
+        if not isinstance(var_light, dict):
+            var_light = {}
+        portfolio_metrics = risk_data.get("portfolio_metrics") or {}
+        if not isinstance(portfolio_metrics, dict):
+            portfolio_metrics = {}
 
         # Алерт по концентрации Top-1
         top1 = concentration.get("top1_weight_pct")

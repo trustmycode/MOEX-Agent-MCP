@@ -418,3 +418,4 @@ class TestMarketDataSubagentErrorHandling:
         assert result.data["snapshot"] is not None
         assert result.data["ohlcv"] is None
 
+

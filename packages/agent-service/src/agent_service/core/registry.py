@@ -234,3 +234,4 @@ def get_registry() -> SubagentRegistry:
     """
     return default_registry
 
+

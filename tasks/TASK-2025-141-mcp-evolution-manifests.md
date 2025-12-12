@@ -59,3 +59,4 @@ https://cloud.ru/docs/ai-agents/ug/topics/concepts__variables-mcp-server?source-
 
 - [Документация MCP Server Variables](https://cloud.ru/docs/ai-agents/ug/topics/concepts__variables-mcp-server?source-platform=Evolution)
 
+

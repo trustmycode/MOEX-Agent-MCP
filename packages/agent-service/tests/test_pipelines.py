@@ -204,3 +204,4 @@ class TestPipelineSummary:
             # Хотя бы один шаг
             assert any(name in summary for name in ["market_data", "explainer", "risk_analytics"])
 
+

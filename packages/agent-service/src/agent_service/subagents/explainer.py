@@ -120,6 +120,26 @@ class ExplainerSubagent(BaseSubagent):
         )
         self.llm_client: LLMClient = llm_client or MockLLMClient()
 
+    # ------------------------------------------------------------------ #
+    # Helpers: безопасное форматирование чисел (без падения на None)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _fmt(value: Any, digits: int = 2, suffix: str = "%", fallback: str = "данные недоступны") -> str:
+        """Безопасно форматировать число с суффиксом. Возвращает fallback при None/ошибке."""
+        try:
+            if value is None:
+                return fallback
+            num = float(value)
+            return f"{num:.{digits}f}{suffix}"
+        except Exception:
+            return fallback
+
+    @staticmethod
+    def _fmt_plain(value: Any, digits: int = 2, fallback: str = "данные недоступны") -> str:
+        """Формат без суффикса."""
+        return ExplainerSubagent._fmt(value, digits=digits, suffix="", fallback=fallback)
+
     async def execute(self, context: AgentContext) -> SubagentResult:
         """
         Сгенерировать текстовый отчёт на основе данных из context.
@@ -384,15 +404,15 @@ class ExplainerSubagent(BaseSubagent):
             lines.append("### Метрики портфеля\n")
             if "total_return_pct" in portfolio_metrics:
                 lines.append(
-                    f"- Доходность за период: **{portfolio_metrics['total_return_pct']:.2f}%**"
+                    f"- Доходность за период: **{self._fmt(portfolio_metrics.get('total_return_pct'))}**"
                 )
             if "annualized_volatility_pct" in portfolio_metrics:
                 lines.append(
-                    f"- Годовая волатильность: **{portfolio_metrics['annualized_volatility_pct']:.2f}%**"
+                    f"- Годовая волатильность: **{self._fmt(portfolio_metrics.get('annualized_volatility_pct'))}**"
                 )
             if "max_drawdown_pct" in portfolio_metrics:
                 lines.append(
-                    f"- Максимальная просадка: **{portfolio_metrics['max_drawdown_pct']:.2f}%**"
+                    f"- Максимальная просадка: **{self._fmt(portfolio_metrics.get('max_drawdown_pct'))}**"
                 )
 
         # Concentration metrics
@@ -401,14 +421,14 @@ class ExplainerSubagent(BaseSubagent):
             lines.append("\n### Метрики концентрации\n")
             if "top1_weight_pct" in concentration:
                 lines.append(
-                    f"- Концентрация Top-1: **{concentration['top1_weight_pct']:.1f}%**"
+                    f"- Концентрация Top-1: **{self._fmt(concentration.get('top1_weight_pct'), digits=1)}**"
                 )
             if "top3_weight_pct" in concentration:
                 lines.append(
-                    f"- Концентрация Top-3: **{concentration['top3_weight_pct']:.1f}%**"
+                    f"- Концентрация Top-3: **{self._fmt(concentration.get('top3_weight_pct'), digits=1)}**"
                 )
             if "portfolio_hhi" in concentration:
-                lines.append(f"- HHI: **{concentration['portfolio_hhi']:.0f}**")
+                lines.append(f"- HHI: **{self._fmt_plain(concentration.get('portfolio_hhi'), digits=0)}**")
 
         # VaR
         var_light = risk_data.get("var_light", {})
@@ -418,7 +438,7 @@ class ExplainerSubagent(BaseSubagent):
                 confidence = var_light.get("confidence_level", 0.95)
                 horizon = var_light.get("horizon_days", 1)
                 lines.append(
-                    f"- VaR ({int(confidence * 100)}%, {horizon}д): **{var_light['var_pct']:.2f}%**"
+                    f"- VaR ({int(confidence * 100)}%, {horizon}д): **{self._fmt(var_light.get('var_pct'))}**"
                 )
 
         # Stress results
@@ -428,7 +448,7 @@ class ExplainerSubagent(BaseSubagent):
             for stress in stress_results:
                 lines.append(
                     f"- {stress.get('description', stress.get('id'))}: "
-                    f"**{stress.get('pnl_pct', 0):.2f}%**"
+                    f"**{self._fmt(stress.get('pnl_pct'))}**"
                 )
 
         # Per instrument (краткое)
@@ -438,8 +458,8 @@ class ExplainerSubagent(BaseSubagent):
             for instr in per_instrument[:5]:  # Показываем top-5
                 weight_pct = instr.get("weight", 0) * 100
                 lines.append(
-                    f"- {instr.get('ticker')}: вес {weight_pct:.1f}%, "
-                    f"доходность {instr.get('total_return_pct', 0):.2f}%"
+                    f"- {instr.get('ticker')}: вес {self._fmt(weight_pct, digits=1)}, "
+                    f"доходность {self._fmt(instr.get('total_return_pct'))}"
                 )
 
         return "\n".join(lines)
@@ -470,13 +490,13 @@ class ExplainerSubagent(BaseSubagent):
                     intraday_vol = snap.get("intraday_volatility_estimate")
 
                     if price is not None:
-                        lines.append(f"- Последняя цена: **{price}**")
+                        lines.append(f"- Последняя цена: **{self._fmt_plain(price, digits=2)}**")
                     if change_pct is not None:
-                        lines.append(f"- Изменение: **{change_pct:.2f}%**")
+                        lines.append(f"- Изменение: **{self._fmt(change_pct)}**")
                     if value is not None:
-                        lines.append(f"- Оборот: **{value:,.0f}**".replace(",", " "))
+                        lines.append(f"- Оборот: **{self._fmt_plain(value, digits=0)}**")
                     if intraday_vol is not None:
-                        lines.append(f"- Интрадей волатильность: **{intraday_vol:.2f}**")
+                        lines.append(f"- Интрадей волатильность: **{self._fmt_plain(intraday_vol)}**")
 
                     if price is None and change_pct is None and value is None and intraday_vol is None:
                         lines.append("- Данные недоступны")
@@ -588,15 +608,15 @@ Please try again later or refine your request parameters.
 
             if "total_return_pct" in portfolio_metrics:
                 sections.append(
-                    f"- **Доходность**: {portfolio_metrics['total_return_pct']:.2f}%"
+                    f"- **Доходность**: {self._fmt(portfolio_metrics.get('total_return_pct'))}"
                 )
             if "annualized_volatility_pct" in portfolio_metrics:
                 sections.append(
-                    f"- **Волатильность**: {portfolio_metrics['annualized_volatility_pct']:.2f}%"
+                    f"- **Волатильность**: {self._fmt(portfolio_metrics.get('annualized_volatility_pct'))}"
                 )
             if "max_drawdown_pct" in portfolio_metrics:
                 sections.append(
-                    f"- **Max Drawdown**: {portfolio_metrics['max_drawdown_pct']:.2f}%"
+                    f"- **Max Drawdown**: {self._fmt(portfolio_metrics.get('max_drawdown_pct'))}"
                 )
 
         # Алерты

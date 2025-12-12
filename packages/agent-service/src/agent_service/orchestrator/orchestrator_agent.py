@@ -703,6 +703,12 @@ class OrchestratorAgent:
         """
         tables: list[TableData] = []
 
+        def fmt(val: Any, digits: int = 2) -> str:
+            try:
+                return f"{float(val):.{digits}f}"
+            except (TypeError, ValueError):
+                return f"{0:.{digits}f}"
+
         # Ищем таблицы в risk_analytics результате
         risk_result = context.get_result("risk_analytics")
         if risk_result and isinstance(risk_result, dict):
@@ -714,12 +720,17 @@ class OrchestratorAgent:
                     rows = []
                     for item in per_instrument:
                         if isinstance(item, dict):
+                            weight = item.get("weight")
+                            try:
+                                weight_pct = float(weight) * 100
+                            except (TypeError, ValueError):
+                                weight_pct = 0.0
                             rows.append([
                                 item.get("ticker", ""),
-                                f"{item.get('weight', 0) * 100:.1f}",
-                                f"{item.get('total_return_pct', 0):.2f}",
-                                f"{item.get('annualized_volatility_pct', 0):.2f}",
-                                f"{item.get('max_drawdown_pct', 0):.2f}",
+                                f"{weight_pct:.1f}",
+                                fmt(item.get("total_return_pct")),
+                                fmt(item.get("annualized_volatility_pct")),
+                                fmt(item.get("max_drawdown_pct")),
                             ])
                     if rows:
                         tables.append(TableData(
@@ -740,7 +751,7 @@ class OrchestratorAgent:
                             rows.append([
                                 item.get("id", ""),
                                 item.get("description", ""),
-                                f"{item.get('pnl_pct', 0):.2f}",
+                                fmt(item.get("pnl_pct")),
                             ])
                     if rows:
                         tables.append(TableData(

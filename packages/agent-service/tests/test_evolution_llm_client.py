@@ -127,3 +127,4 @@ async def test_generate_retries_on_retryable_error(monkeypatch):
     assert sleeps == pytest.approx([0.5], rel=0.1)
     assert models_called == ["dev-model", "dev-model"]
 
+

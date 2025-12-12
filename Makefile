@@ -14,6 +14,9 @@ PULL_FLAG := $(if $(filter true,$(PULL)),--pull,)
 local-build:
 	DOCKER_DEFAULT_PLATFORM=$(PLATFORM) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build $(PULL_FLAG)
 
+local-build-no-cache:
+	DOCKER_DEFAULT_PLATFORM=$(PLATFORM) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --no-cache $(PULL_FLAG)
+
 local-up:
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 

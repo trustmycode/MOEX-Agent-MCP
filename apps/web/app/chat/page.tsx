@@ -1,17 +1,21 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Ajv from "ajv";
 import { DashboardRenderer } from "@/components/risk-dashboard/DashboardRenderer";
+import { RiskDashboardProvider, useRiskDashboard } from "@/components/risk-dashboard/DashboardContext";
+import { DashboardRenderMessage } from "@/components/risk-dashboard/DashboardRenderMessage";
 import type { RiskDashboardSpec } from "@/components/risk-dashboard/types";
 import dashboardSchema from "@/schemas/risk-dashboard.schema.json";
 
 type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
+  id?: string;
+  role: "user" | "assistant" | "system";
+  content?: unknown;
   done?: boolean;
   error?: boolean;
+  generativeUI?: () => React.ReactNode;
 };
 
 type AguiEnvelope = {
@@ -40,23 +44,42 @@ function parseSseChunk(chunk: string): { event: string; data: AguiEnvelope } | n
   }
 }
 
-export default function ChatPage() {
+function ChatPageInner() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [dashboard, setDashboard] = useState<RiskDashboardSpec | null>(null);
   const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
   const [runStatus, setRunStatus] = useState<"idle" | "running" | "finished" | "error">(
     "idle",
   );
   const [error, setError] = useState<string | null>(null);
+  const [dashboardOnly, setDashboardOnly] = useState(false);
   const threadIdRef = useRef<string>(crypto.randomUUID());
 
   const ajv = useMemo(() => new Ajv({ allErrors: true, strict: false }), []);
   const validateDashboard = useMemo(() => ajv.compile(dashboardSchema as object), [ajv]);
+  const { dashboard, applyDashboard, reset } = useRiskDashboard();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("dashboardOnly");
+    if (stored === "true") {
+      setDashboardOnly(true);
+    }
+  }, []);
+
+  const toggleDashboardOnly = useCallback(() => {
+    setDashboardOnly((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("dashboardOnly", String(next));
+      }
+      return next;
+    });
+  }, []);
 
   const upsertAssistantMessage = useCallback((messageId: string, updater: (text: string) => string) => {
     setMessages((prev) => {
-      const existingIdx = prev.findIndex((m) => m.id === messageId);
+      const existingIdx = prev.findIndex((m) => m.id === messageId && m.role === "assistant");
       if (existingIdx === -1) {
         return [
           ...prev,
@@ -65,7 +88,8 @@ export default function ChatPage() {
       }
       const next = [...prev];
       const current = next[existingIdx];
-      next[existingIdx] = { ...current, content: updater(current.content) };
+      const currentText = typeof current.content === "string" ? current.content : "";
+      next[existingIdx] = { ...current, content: updater(currentText) };
       return next;
     });
   }, []);
@@ -83,6 +107,7 @@ export default function ChatPage() {
           setRunStatus("running");
           setError(null);
           setSchemaErrors([]);
+          reset();
           break;
         case "TEXT_MESSAGE_START": {
           const messageId = String(payload.messageId ?? crypto.randomUUID());
@@ -107,6 +132,18 @@ export default function ChatPage() {
           const schemaErrs = (snapshot.schema_errors as string[]) ?? [];
 
           if (snapshotDashboard) {
+            const dashMessageId =
+              (payload.runId as string) ||
+              (payload.run_id as string) ||
+              (snapshotDashboard.metadata?.portfolio_id as string) ||
+              crypto.randomUUID();
+
+            // Лёгкая диагностика
+            console.debug("STATE_SNAPSHOT dashboard received", {
+              runId: payload.runId || payload.run_id,
+              portfolio: snapshotDashboard.metadata?.portfolio_id,
+            });
+
             let validationOk = true;
             let errors: string[] = [];
 
@@ -122,7 +159,41 @@ export default function ChatPage() {
             }
 
             setSchemaErrors(validationOk ? [] : errors);
-            setDashboard(snapshotDashboard);
+
+            const status = ["success", "error", "partial"].includes(
+              (snapshot.status as string) ?? "",
+            )
+              ? (snapshot.status as "success" | "error" | "partial")
+              : "success";
+
+            // Идемпотентно применяем дашборд в контекст
+            applyDashboard(dashMessageId, snapshotDashboard, {
+              status,
+              text: (snapshot.text as string | undefined) ?? undefined,
+              error: (snapshot.error as string | undefined) ?? null,
+            });
+
+            // Прокидываем synthetic chat message в формате, который понимает DashboardRenderMessage
+            const dashEnvelope = {
+              type: "dashboard",
+              payload: snapshotDashboard,
+              status: (snapshot.status as string | undefined) ?? "success",
+              text: (snapshot.text as string | undefined) ?? undefined,
+              error: (snapshot.error as string | undefined) ?? null,
+            };
+
+            setMessages((prev) => {
+              // Проверяем дубликаты по id
+              if (prev.some((m) => m.id === dashMessageId)) return prev;
+              return [
+                ...prev,
+                {
+                  id: dashMessageId,
+                  role: "assistant",
+                  content: JSON.stringify(dashEnvelope),
+                },
+              ];
+            });
           }
           break;
         }
@@ -137,7 +208,7 @@ export default function ChatPage() {
           break;
       }
     },
-    [markDone, upsertAssistantMessage, validateDashboard],
+    [applyDashboard, markDone, reset, upsertAssistantMessage, validateDashboard],
   );
 
   const streamRun = useCallback(
@@ -221,26 +292,42 @@ export default function ChatPage() {
       };
 
       setInput("");
-      setDashboard(null);
       setSchemaErrors([]);
+      reset();
       await streamRun(body);
     },
-    [input, streamRun],
+    [input, reset, streamRun],
   );
 
   return (
     <main className="min-h-screen bg-background p-6 lg:p-10">
-      <div className="mb-6 flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">AG-UI · Chat</p>
-        <h1 className="text-3xl font-semibold text-white lg:text-4xl">Чат + Risk Dashboard</h1>
-        <p className="max-w-3xl text-slate-300">
-          Отправьте запрос — сервер вернёт поток AG-UI событий (SSE). Сообщения рендерятся
-          инкрементально, дашборд — по JSON Schema v1.0.
-        </p>
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">AG-UI · Chat</p>
+          <h1 className="text-3xl font-semibold text-white lg:text-4xl">Чат + Risk Dashboard</h1>
+          <p className="max-w-3xl text-slate-300">
+            Отправьте запрос — сервер вернёт поток AG-UI событий (SSE). Сообщения рендерятся
+            инкрементально, дашборд — по JSON Schema v1.0.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-emerald-500"
+              checked={dashboardOnly}
+              onChange={toggleDashboardOnly}
+            />
+            Только дашборд
+          </label>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
-        <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-xl">
+      <div
+        className={`grid gap-6 ${dashboardOnly ? "" : "lg:grid-cols-[1.2fr,1fr]"}`}
+      >
+        {!dashboardOnly && (
+          <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-xl">
           <div className="mb-4 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-white">Чат</p>
@@ -259,20 +346,14 @@ export default function ChatPage() {
                 История пуста. Спросите: «Оцени риск портфеля SBER/GAZP/LKOH».
               </div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`rounded-xl border p-3 text-sm ${
-                    msg.role === "user"
-                      ? "border-slate-700 bg-slate-900/60 text-white"
-                      : "border-emerald-800/60 bg-emerald-900/10 text-emerald-50"
-                  }`}
-                >
-                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                    {msg.role}
-                  </p>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                </div>
+              messages.map((msg, idx) => (
+                <DashboardRenderMessage
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={msg.id ?? idx}
+                  message={msg}
+                  index={idx}
+                  isCurrentMessage={idx === messages.length - 1}
+                />
               ))
             )}
           </div>
@@ -296,7 +377,8 @@ export default function ChatPage() {
               </button>
             </div>
           </form>
-        </section>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
@@ -317,6 +399,14 @@ export default function ChatPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <RiskDashboardProvider>
+      <ChatPageInner />
+    </RiskDashboardProvider>
   );
 }
 

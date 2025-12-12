@@ -69,3 +69,4 @@ async def test_research_planner_returns_error_on_bad_json():
     assert result.is_error
     assert "Ошибка" in (result.error_message or "Ошибка")
 
+

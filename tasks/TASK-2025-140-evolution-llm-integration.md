@@ -55,3 +55,4 @@ https://cloud.ru/docs/ai-agents/ug/topics/concepts__variables-mcp-server?source-
 
 - [Документация Foundation Models](https://cloud.ru/docs/foundation-models/ug/topics/guides?source-platform=Evolution)
 
+

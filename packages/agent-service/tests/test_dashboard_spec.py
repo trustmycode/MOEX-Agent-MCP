@@ -350,3 +350,4 @@ class TestEnums:
         assert ChartType.PIE.value == "pie"
         assert ChartType.HEATMAP.value == "heatmap"
 
+

@@ -169,3 +169,4 @@ class BaseSubagent(ABC):
         """Краткое строковое представление."""
         return f"{self.__class__.__name__}({self.name!r})"
 
+

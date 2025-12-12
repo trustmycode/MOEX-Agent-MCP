@@ -377,3 +377,4 @@ def get_pipeline_summary(scenario_type: ScenarioType) -> str:
     labeled_steps = [f"{name}{mark}" for name, mark in zip(step_names, required_marks)]
     return " → ".join(labeled_steps)
 
+

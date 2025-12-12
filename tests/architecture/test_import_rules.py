@@ -79,3 +79,4 @@ def test_moex_sdk_is_isolated_from_mcp() -> None:
 def test_calculations_are_pure_python() -> None:
     _run_importlinter(CALCULATIONS_CONFIG)
 
+
