@@ -482,3 +482,144 @@ class TestDashboardEdgeCases:
         assert len(dashboard.metric_cards) == 1
         assert dashboard.metric_cards[0].id == "portfolio_total_return_pct"
 
+
+class TestDashboardAdvancedMappings:
+    """Дополнительные маппинги дашборда."""
+
+    @pytest.mark.asyncio
+    async def test_cfo_liquidity_mapping(self, dashboard_subagent: DashboardSubagent):
+        """CFO: метрики, таблицы и алерты по ликвидности."""
+        cfo_report = {
+            "metadata": {
+                "total_portfolio_value": 100_000_000,
+                "covenant_limits": {"min_liquidity_ratio": 0.8},
+            },
+            "liquidity_profile": {
+                "quick_ratio_pct": 15.0,
+                "short_term_ratio_pct": 70.0,
+                "buckets": [
+                    {"bucket": "0-7d", "weight_pct": 40.0, "value": 40000000, "tickers": ["CASH"]},
+                    {"bucket": "8-30d", "weight_pct": 30.0, "value": 30000000, "tickers": ["BOND1"]},
+                    {"bucket": "31-90d", "weight_pct": 20.0, "value": 20000000, "tickers": ["BOND2"]},
+                    {"bucket": "90d+", "weight_pct": 10.0, "value": 10000000, "tickers": ["PRIVATE"]},
+                ],
+            },
+            "stress_scenarios": [
+                {
+                    "id": "equity_-10",
+                    "description": "Стресс -10%",
+                    "pnl_pct": -12.0,
+                    "liquidity_ratio_after": 65.0,
+                    "covenant_breaches": [
+                        {"code": "LIQUIDITY_RATIO", "description": "Ниже ковенанта"}
+                    ],
+                }
+            ],
+        }
+        context = AgentContext(
+            user_query="Ликвидность портфеля",
+            scenario_type="cfo_liquidity_report",
+        )
+        context.add_result("risk_analytics", {"cfo_report": cfo_report})
+
+        result = await dashboard_subagent.execute(context)
+        dashboard = _get_dashboard(result)
+
+        metric_ids = [m.id for m in dashboard.metric_cards]
+        assert "cfo_liquidity_ratio_pct" in metric_ids
+        assert "cfo_portfolio_value_after" in metric_ids
+
+        buckets_table = next((t for t in dashboard.tables if t.id == "cfo_liquidity_buckets"), None)
+        assert buckets_table is not None
+        assert len(buckets_table.rows) == 4
+
+        alert_ids = [a.id for a in dashboard.alerts]
+        assert "cfo_liquidity_covenant" in alert_ids
+
+    @pytest.mark.asyncio
+    async def test_tail_bottom_table_and_alert(self, dashboard_subagent: DashboardSubagent):
+        """Хвост индекса: таблица Bottom-N и алерт."""
+        context = AgentContext(
+            user_query="Покажи хвост индекса",
+            scenario_type="index_tail_analysis",
+        )
+        context.add_result(
+            "risk_analytics",
+            {
+                "scenario": "index_tail_analysis",
+                "per_instrument": [
+                    {"ticker": "TAIL1", "weight": 0.02, "total_return_pct": -5.0, "annualized_volatility_pct": 35.0, "max_drawdown_pct": -15.0},
+                    {"ticker": "TAIL2", "weight": 0.015, "total_return_pct": -2.0, "annualized_volatility_pct": 18.0, "max_drawdown_pct": -8.0},
+                ],
+            },
+        )
+
+        result = await dashboard_subagent.execute(context)
+        dashboard = _get_dashboard(result)
+
+        tail_table = next((t for t in dashboard.tables if t.id == "index_tail_bottom"), None)
+        assert tail_table is not None
+        assert tail_table.rows[0][0] == "TAIL1"  # отсортировано по весу desc
+
+        assert any(a.id == "index_tail_risk" for a in dashboard.alerts)
+
+    @pytest.mark.asyncio
+    async def test_correlation_matrix_mapping(self, dashboard_subagent: DashboardSubagent):
+        """Корреляции: таблица, график и алерт."""
+        context = AgentContext(
+            user_query="Корреляции тикеров",
+            scenario_type="compare_securities",
+        )
+        context.add_result(
+            "risk_analytics",
+            {
+                "correlation_matrix": {
+                    "tickers": ["BBB", "AAA"],
+                    "matrix": [
+                        [1, 0.8],
+                        [0.8, 1],
+                    ],
+                }
+            },
+        )
+
+        result = await dashboard_subagent.execute(context)
+        dashboard = _get_dashboard(result)
+
+        corr_table = next((t for t in dashboard.tables if t.id == "correlation_matrix"), None)
+        assert corr_table is not None
+        assert corr_table.rows[0][0] == "AAA"  # алфавитная сортировка
+
+        assert any(c.id == "correlation_heatmap" for c in dashboard.charts)
+        assert any(a.id == "correlation_high" for a in dashboard.alerts)
+
+    @pytest.mark.asyncio
+    async def test_market_compare_table(self, dashboard_subagent: DashboardSubagent):
+        """Market data: таблица сравнения тикеров."""
+        context = AgentContext(
+            user_query="Сравни SBER и GAZP",
+            scenario_type="compare_securities",
+        )
+        context.add_result(
+            "risk_analytics",
+            {"portfolio_metrics": {"total_return_pct": 0.0}},
+        )
+        context.add_result(
+            "market_data",
+            {
+                "tickers": ["SBER", "GAZP"],
+                "securities": {
+                    "SBER": {"snapshot": {"last_price": 270, "price_change_pct": 1.5, "value": 1_000_000, "intraday_volatility_estimate": 10.0}},
+                    "GAZP": {"snapshot": {"last_price": 150, "price_change_pct": -0.5, "value": 800_000, "intraday_volatility_estimate": 12.0}},
+                },
+            },
+        )
+
+        result = await dashboard_subagent.execute(context)
+        dashboard = _get_dashboard(result)
+
+        compare_table = next((t for t in dashboard.tables if t.id == "market_compare"), None)
+        assert compare_table is not None
+        assert len(compare_table.rows) == 2
+        assert compare_table.rows[0][0] == "GAZP"  # отсортировано по тикеру
+

@@ -41,6 +41,8 @@ VAR_CRITICAL_THRESHOLD = 6.0  # % — критический порог
 VOLATILITY_HIGH_THRESHOLD = 30.0  # % — высокая волатильность
 DRAWDOWN_WARNING_THRESHOLD = 10.0  # % — предупреждение по просадке
 DRAWDOWN_CRITICAL_THRESHOLD = 20.0  # % — критическая просадка
+CORRELATION_WARNING_THRESHOLD = 0.7  # сильные корреляции
+CORRELATION_CRITICAL_THRESHOLD = 0.9  # очень сильные корреляции
 
 
 class DashboardSubagent(BaseSubagent):
@@ -156,6 +158,7 @@ class DashboardSubagent(BaseSubagent):
         Returns:
             Заполненный RiskDashboardSpec.
         """
+        market_data = context.get_result("market_data") or {}
         dashboard = RiskDashboardSpec(
             metadata=self._build_metadata(context, risk_data),
         )
@@ -164,20 +167,25 @@ class DashboardSubagent(BaseSubagent):
         self._add_portfolio_metrics(dashboard, risk_data)
         self._add_concentration_metrics(dashboard, risk_data)
         self._add_var_metrics(dashboard, risk_data)
+        self._add_cfo_metrics(dashboard, risk_data)
 
         # 2. Добавляем таблицы
         self._add_positions_table(dashboard, risk_data)
         self._add_stress_table(dashboard, risk_data)
+        self._add_cfo_tables(dashboard, risk_data)
+        self._add_correlation_views(dashboard, risk_data)
+        self._add_tail_table(dashboard, risk_data)
+        self._add_market_compare_table(dashboard, market_data)
 
         # 3. Добавляем графики
-        self._add_charts(dashboard, risk_data)
+        self._add_charts(dashboard, risk_data, market_data)
 
         # 4. Генерируем алерты
-        self._generate_alerts(dashboard, risk_data)
+        self._generate_alerts(dashboard, risk_data, market_data)
 
         # 5. Собираем data/time_series для data_ref ссылок
-        dashboard.data = self._build_data_payload(risk_data)
-        dashboard.time_series = self._build_time_series(risk_data)
+        dashboard.data = self._build_data_payload(risk_data, market_data)
+        dashboard.time_series = self._build_time_series(risk_data, market_data)
         if dashboard.time_series:
             dashboard.raw_data = {"time_series": dashboard.time_series}
 
@@ -380,6 +388,83 @@ class DashboardSubagent(BaseSubagent):
                 status=status,
             )
 
+    def _add_cfo_metrics(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Добавить CFO-метрики ликвидности/стоимости портфеля."""
+        cfo_report = risk_data.get("cfo_report")
+        if not isinstance(cfo_report, dict):
+            return
+
+        metadata = cfo_report.get("metadata") or {}
+        liquidity_profile = cfo_report.get("liquidity_profile") or {}
+        covenant_limits = (
+            metadata.get("covenant_limits")
+            or cfo_report.get("covenant_limits")
+            or {}
+        )
+
+        min_liq_ratio = covenant_limits.get("min_liquidity_ratio")
+        limit_pct = float(min_liq_ratio) * 100 if min_liq_ratio is not None else None
+
+        short_term_ratio = liquidity_profile.get("short_term_ratio_pct")
+        if short_term_ratio is not None:
+            status = MetricSeverity.INFO
+            if limit_pct is not None and short_term_ratio < limit_pct:
+                status = MetricSeverity.CRITICAL
+            dashboard.add_metric_card(
+                id="cfo_liquidity_ratio_pct",
+                title="Коэффициент ликвидности (0-30д)",
+                value=short_term_ratio,
+                unit="%",
+                status=status,
+            )
+
+        quick_ratio = liquidity_profile.get("quick_ratio_pct")
+        if quick_ratio is not None:
+            status = MetricSeverity.INFO
+            if quick_ratio < 10:
+                status = MetricSeverity.CRITICAL
+            elif quick_ratio < 20:
+                status = MetricSeverity.WARNING
+            dashboard.add_metric_card(
+                id="cfo_quick_ratio_pct",
+                title="Доля высоколиквидных активов (0-7д)",
+                value=quick_ratio,
+                unit="%",
+                status=status,
+            )
+
+        total_value = metadata.get("total_portfolio_value")
+        if total_value is not None:
+            dashboard.add_metric_card(
+                id="cfo_portfolio_value_before",
+                title="Стоимость портфеля (до стресса)",
+                value=self._format_currency(total_value),
+                unit="",
+                status=MetricSeverity.INFO,
+            )
+
+            worst_after = self._compute_worst_stress_value(
+                total_value, cfo_report.get("stress_scenarios")
+            )
+            if worst_after is not None:
+                worst_pct = self._compute_worst_pnl_pct(cfo_report.get("stress_scenarios"))
+                status = MetricSeverity.INFO
+                if worst_pct is not None:
+                    if worst_pct < -20:
+                        status = MetricSeverity.CRITICAL
+                    elif worst_pct < -10:
+                        status = MetricSeverity.WARNING
+                dashboard.add_metric_card(
+                    id="cfo_portfolio_value_after",
+                    title="Стоимость портфеля (худший стресс)",
+                    value=self._format_currency(worst_after),
+                    unit="",
+                    status=status,
+                    change=f"{worst_pct:.2f}" if worst_pct is not None else None,
+                )
+
     def _add_positions_table(
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
@@ -451,10 +536,234 @@ class DashboardSubagent(BaseSubagent):
             data_ref="data.stress_results",
         )
 
-    def _add_charts(
+    def _add_cfo_tables(
         self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
     ) -> None:
+        """Добавить CFO-таблицы (ликвидность и стресс-сценарии)."""
+        cfo_report = risk_data.get("cfo_report")
+        if not isinstance(cfo_report, dict):
+            return
+
+        liquidity_profile = cfo_report.get("liquidity_profile") or {}
+        buckets = liquidity_profile.get("buckets") or []
+        bucket_order = {"0-7d": 0, "8-30d": 1, "31-90d": 2, "90d+": 3}
+
+        if buckets:
+            sorted_buckets = sorted(
+                [b for b in buckets if isinstance(b, dict)],
+                key=lambda b: bucket_order.get(b.get("bucket"), 99),
+            )
+            rows = []
+            for bucket in sorted_buckets:
+                rows.append(
+                    [
+                        str(bucket.get("bucket", "")),
+                        self._format_percent(bucket.get("weight_pct")),
+                        self._format_currency(bucket.get("value")),
+                        ", ".join(sorted(bucket.get("tickers", []))) if bucket.get("tickers") else "нет данных",
+                    ]
+                )
+            dashboard.add_table(
+                id="cfo_liquidity_buckets",
+                title="Корзины ликвидности",
+                columns=[
+                    ("bucket", "Корзина"),
+                    ("weight_pct", "Доля, %"),
+                    ("value", "Стоимость"),
+                    ("tickers", "Тикеры"),
+                ],
+                rows=rows,
+                data_ref="data.cfo_report.liquidity_profile.buckets",
+            )
+
+        stress_scenarios = cfo_report.get("stress_scenarios") or []
+        if stress_scenarios:
+            sorted_stress = sorted(
+                [s for s in stress_scenarios if isinstance(s, dict)],
+                key=lambda s: str(s.get("id", "")),
+            )
+            rows = []
+            for scenario in sorted_stress:
+                breaches = scenario.get("covenant_breaches") or []
+                breach_codes = ", ".join(
+                    sorted({b.get("code") for b in breaches if isinstance(b, dict) and b.get("code")})
+                ) or "нет"
+                rows.append(
+                    [
+                        str(scenario.get("id", "")),
+                        self._format_percent(scenario.get("pnl_pct")),
+                        self._format_percent(scenario.get("liquidity_ratio_after")),
+                        breach_codes,
+                    ]
+                )
+
+            dashboard.add_table(
+                id="cfo_liquidity_stress",
+                title="Стресс-сценарии ликвидности",
+                columns=[
+                    ("id", "Сценарий"),
+                    ("pnl_pct", "P&L, %"),
+                    ("liquidity_ratio_after", "Ликвидн., %"),
+                    ("covenant_breaches", "Ковенанты"),
+                ],
+                rows=rows,
+                data_ref="data.cfo_report.stress_scenarios",
+            )
+
+    def _add_correlation_views(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Добавить таблицу/график корреляций."""
+        normalized = self._normalize_correlation_data(risk_data.get("correlation_matrix"))
+        if not normalized:
+            return
+
+        tickers = normalized["tickers"]
+        matrix = normalized["matrix"]
+
+        columns = [("ticker", "Тикер")] + [(t, t) for t in tickers]
+        rows: list[list[str]] = []
+        for i, ticker in enumerate(tickers):
+            row = [ticker]
+            for j in range(len(tickers)):
+                row.append(self._format_corr_value(matrix[i][j]))
+            rows.append(row)
+
+        dashboard.add_table(
+            id="correlation_matrix",
+            title="Матрица корреляций",
+            columns=columns,
+            rows=rows,
+            data_ref="data.correlation_matrix",
+        )
+
+        dashboard.charts.append(
+            ChartSpec(
+                id="correlation_heatmap",
+                type=ChartType.HEATMAP,
+                title="Корреляции бумаг",
+                x_axis=ChartAxis(field="ticker_x", label="Тикер X"),
+                y_axis=ChartAxis(field="ticker_y", label="Тикер Y"),
+                series=[
+                    ChartSeries(
+                        id="correlation_matrix",
+                        label="Корреляции",
+                        data_ref="data.correlation_matrix",
+                    )
+                ],
+            )
+        )
+
+    def _add_tail_table(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Добавить таблицу хвоста индекса (Bottom-N)."""
+        scenario = risk_data.get("scenario")
+        has_tail = scenario == "index_tail_analysis" or risk_data.get("tail_constituents")
+        per_instrument = risk_data.get("per_instrument") or []
+        if not has_tail or not per_instrument:
+            return
+
+        normalized = self._normalize_per_instrument(per_instrument, weight_from_fraction=True)
+        sorted_rows = sorted(
+            normalized,
+            key=lambda x: x.get("weight_pct") or 0,
+            reverse=True,
+        )
+
+        rows: list[list[str]] = []
+        for instr in sorted_rows:
+            rows.append(
+                [
+                    str(instr.get("ticker", "")),
+                    self._format_percent(instr.get("weight_pct")),
+                    self._format_percent(instr.get("total_return_pct")),
+                    self._format_percent(instr.get("annualized_volatility_pct")),
+                    self._format_percent(instr.get("max_drawdown_pct")),
+                ]
+            )
+
+        dashboard.add_table(
+            id="index_tail_bottom",
+            title="Bottom-N индекса",
+            columns=[
+                ("ticker", "Тикер"),
+                ("weight_pct", "Вес, %"),
+                ("total_return_pct", "Доходность, %"),
+                ("annualized_volatility_pct", "Волатильность, %"),
+                ("max_drawdown_pct", "Max DD, %"),
+            ],
+            rows=rows,
+            data_ref="data.index_tail.per_instrument",
+        )
+
+    def _add_market_compare_table(
+        self, dashboard: RiskDashboardSpec, market_data: dict[str, Any]
+    ) -> None:
+        """Добавить таблицу сравнения тикеров из market_data."""
+        if not isinstance(market_data, dict):
+            return
+
+        securities_raw = market_data.get("securities")
+        if not securities_raw and market_data.get("ticker"):
+            ticker = market_data.get("ticker")
+            securities_raw = {
+                ticker: {
+                    "snapshot": market_data.get("snapshot"),
+                    "ohlcv": market_data.get("ohlcv"),
+                }
+            }
+
+        if not securities_raw:
+            return
+
+        normalized: dict[str, dict[str, Any]] = {}
+        for ticker, payload in securities_raw.items():
+            if not isinstance(payload, dict):
+                continue
+            snapshot = payload.get("snapshot") or {}
+            normalized[ticker] = {
+                "last_price": snapshot.get("last_price"),
+                "price_change_pct": snapshot.get("price_change_pct"),
+                "value": snapshot.get("value"),
+                "intraday_volatility_estimate": snapshot.get("intraday_volatility_estimate"),
+            }
+
+        if not normalized:
+            return
+
+        rows: list[list[str]] = []
+        for ticker in sorted(normalized.keys()):
+            snap = normalized[ticker]
+            rows.append(
+                [
+                    ticker,
+                    self._format_number(snap.get("last_price"), decimals=2),
+                    self._format_percent(snap.get("price_change_pct")),
+                    self._format_currency(snap.get("value")),
+                    self._format_percent(snap.get("intraday_volatility_estimate")),
+                ]
+            )
+
+        dashboard.add_table(
+            id="market_compare",
+            title="Сравнение тикеров",
+            columns=[
+                ("ticker", "Тикер"),
+                ("last_price", "Цена"),
+                ("price_change_pct", "Изм., %"),
+                ("value", "Объём"),
+                ("intraday_volatility_estimate", "Интрадейная вол., %"),
+            ],
+            rows=rows,
+            data_ref="data.market_data.securities",
+        )
+
+    def _add_charts(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any], market_data: dict[str, Any]
+    ) -> None:
         """Добавить графики на дашборд."""
+        _ = market_data  # параметр может использоваться в расширениях
         # График структуры портфеля по весам
         per_instrument = risk_data.get("per_instrument", [])
         if per_instrument:
@@ -500,9 +809,13 @@ class DashboardSubagent(BaseSubagent):
             dashboard.raw_data = {"time_series": time_series}
 
     def _generate_alerts(
-        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+        self,
+        dashboard: RiskDashboardSpec,
+        risk_data: dict[str, Any],
+        market_data: dict[str, Any],
     ) -> None:
         """Генерировать алерты на основе метрик."""
+        _ = market_data  # зарезервировано под расширения
         concentration = risk_data.get("concentration_metrics") or {}
         if not isinstance(concentration, dict):
             concentration = {}
@@ -576,30 +889,150 @@ class DashboardSubagent(BaseSubagent):
                     related_ids=[f"stress:{stress.get('id')}"],
                 )
 
-    def _build_data_payload(self, risk_data: dict[str, Any]) -> dict[str, Any]:
-        """Сформировать словарь data/time_series для data_ref ссылок на фронте."""
-        data: dict[str, Any] = {}
+        self._generate_cfo_alerts(dashboard, risk_data)
+        self._generate_tail_alerts(dashboard, risk_data)
+        self._generate_correlation_alerts(dashboard, risk_data)
+
+    def _generate_cfo_alerts(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Алерты для CFO-отчёта по ликвидности."""
+        cfo_report = risk_data.get("cfo_report")
+        if not isinstance(cfo_report, dict):
+            return
+
+        liquidity_profile = cfo_report.get("liquidity_profile") or {}
+        metadata = cfo_report.get("metadata") or {}
+        covenant_limits = (
+            metadata.get("covenant_limits")
+            or cfo_report.get("covenant_limits")
+            or {}
+        )
+
+        min_liq_ratio = covenant_limits.get("min_liquidity_ratio")
+        limit_pct = float(min_liq_ratio) * 100 if min_liq_ratio is not None else None
+        short_term_ratio = liquidity_profile.get("short_term_ratio_pct")
+        quick_ratio = liquidity_profile.get("quick_ratio_pct")
+
+        if limit_pct is not None and short_term_ratio is not None:
+            if short_term_ratio < limit_pct:
+                dashboard.add_alert(
+                    id="cfo_liquidity_covenant",
+                    severity=AlertSeverity.CRITICAL,
+                    message=f"Коэффициент ликвидности {short_term_ratio:.1f}% ниже ковенанта {limit_pct:.1f}%.",
+                    related_ids=["metric:cfo_liquidity_ratio_pct"],
+                )
+
+        if quick_ratio is not None and quick_ratio < 20:
+            severity = AlertSeverity.CRITICAL if quick_ratio < 10 else AlertSeverity.WARNING
+            dashboard.add_alert(
+                id="cfo_liquidity_shortage",
+                severity=severity,
+                message=f"Низкая доля высоколиквидных активов: {quick_ratio:.1f}%.",
+                related_ids=["metric:cfo_quick_ratio_pct"],
+            )
+
+        stress_scenarios = cfo_report.get("stress_scenarios") or []
+        for scenario in stress_scenarios:
+            if not isinstance(scenario, dict):
+                continue
+            breaches = scenario.get("covenant_breaches") or []
+            for breach in breaches:
+                if not isinstance(breach, dict):
+                    continue
+                if breach.get("code") == "LIQUIDITY_RATIO":
+                    dashboard.add_alert(
+                        id=f"cfo_stress_covenant_{scenario.get('id', 'unknown')}",
+                        severity=AlertSeverity.CRITICAL,
+                        message=breach.get("description", "Нарушение ковенанта ликвидности в стрессе"),
+                        related_ids=[f"stress:{scenario.get('id')}"],
+                    )
+                    break
+
+    def _generate_tail_alerts(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Алерты по хвостовым бумагам индекса."""
+        scenario = risk_data.get("scenario")
+        if scenario != "index_tail_analysis" and not risk_data.get("tail_constituents"):
+            return
 
         per_instrument = risk_data.get("per_instrument") or []
-        normalized_instr: list[dict[str, Any]] = []
+        if not per_instrument:
+            return
+
+        risky: list[str] = []
+        severity = AlertSeverity.WARNING
         for instr in per_instrument:
             if not isinstance(instr, dict):
                 continue
-            weight_pct = instr.get("weight_pct")
-            if weight_pct is None:
-                raw_weight = instr.get("weight")
-                weight_pct = float(raw_weight) * 100 if raw_weight is not None else None
+            dd = instr.get("max_drawdown_pct")
+            vol = instr.get("annualized_volatility_pct")
+            dd_abs = abs(dd) if dd is not None else 0
+            if (dd is not None and dd_abs > DRAWDOWN_WARNING_THRESHOLD) or (
+                vol is not None and vol > VOLATILITY_HIGH_THRESHOLD
+            ):
+                risky.append(instr.get("ticker", ""))
+                if dd_abs > DRAWDOWN_CRITICAL_THRESHOLD:
+                    severity = AlertSeverity.CRITICAL
 
-            normalized_instr.append(
-                {
-                    "ticker": instr.get("ticker"),
-                    "weight_pct": weight_pct,
-                    "total_return_pct": instr.get("total_return_pct"),
-                    "annualized_volatility_pct": instr.get("annualized_volatility_pct"),
-                    "max_drawdown_pct": instr.get("max_drawdown_pct"),
-                }
+        if risky:
+            dashboard.add_alert(
+                id="index_tail_risk",
+                severity=severity,
+                message=f"Повышенный риск в хвосте индекса: {', '.join(sorted(filter(None, risky)))}.",
+                related_ids=[f"ticker:{t}" for t in risky if t],
             )
 
+    def _generate_correlation_alerts(
+        self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]
+    ) -> None:
+        """Алерты по сильным корреляциям."""
+        normalized = self._normalize_correlation_data(risk_data.get("correlation_matrix"))
+        if not normalized:
+            return
+
+        tickers = normalized["tickers"]
+        matrix = normalized["matrix"]
+
+        max_val = 0.0
+        pair: tuple[str, str] | None = None
+        for i in range(len(tickers)):
+            for j in range(len(tickers)):
+                if i == j:
+                    continue
+                val = abs(matrix[i][j])
+                if val > max_val:
+                    max_val = val
+                    pair = (tickers[i], tickers[j])
+
+        if pair is None:
+            return
+
+        if max_val >= CORRELATION_CRITICAL_THRESHOLD:
+            severity = AlertSeverity.CRITICAL
+        elif max_val >= CORRELATION_WARNING_THRESHOLD:
+            severity = AlertSeverity.WARNING
+        else:
+            return
+
+        dashboard.add_alert(
+            id="correlation_high",
+            severity=severity,
+            message=f"Сильная корреляция {max_val:.2f} между {pair[0]} и {pair[1]}.",
+            related_ids=[f"ticker:{pair[0]}", f"ticker:{pair[1]}"],
+        )
+
+    def _build_data_payload(
+        self, risk_data: dict[str, Any], market_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Сформировать словарь data/time_series для data_ref ссылок на фронте."""
+        data: dict[str, Any] = {}
+
+        normalized_instr = self._normalize_per_instrument(
+            risk_data.get("per_instrument") or [],
+            weight_from_fraction=True,
+        )
         if normalized_instr:
             data["per_instrument"] = normalized_instr
 
@@ -618,14 +1051,62 @@ class DashboardSubagent(BaseSubagent):
         if normalized_stress:
             data["stress_results"] = normalized_stress
 
+        corr_normalized = self._normalize_correlation_data(
+            risk_data.get("correlation_matrix")
+        )
+        if corr_normalized:
+            data["correlation_matrix"] = corr_normalized
+
+        cfo_report = risk_data.get("cfo_report")
+        if isinstance(cfo_report, dict):
+            data["cfo_report"] = cfo_report
+
+        if risk_data.get("scenario") == "index_tail_analysis" or risk_data.get("tail_constituents"):
+            tail_instr = self._normalize_per_instrument(
+                risk_data.get("per_instrument") or [], weight_from_fraction=True
+            )
+            if tail_instr:
+                data["index_tail"] = {"per_instrument": tail_instr}
+
+        market_securities = self._normalize_market_securities(market_data)
+        if market_securities:
+            data["market_data"] = {"securities": market_securities}
+
         return data
 
-    def _build_time_series(self, risk_data: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    def _build_time_series(
+        self, risk_data: dict[str, Any], market_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Извлечь временные ряды в безопасном формате."""
+        collected: dict[str, Any] = {}
         ts = risk_data.get("time_series")
         if isinstance(ts, dict):
-            return {k: v for k, v in ts.items() if isinstance(v, list)}
-        return {}
+            for k, v in ts.items():
+                if isinstance(v, list):
+                    collected[k] = v
+                elif isinstance(v, dict) and all(isinstance(val, list) for val in v.values()):
+                    collected[k] = {key: val for key, val in v.items() if isinstance(val, list)}
+
+        if isinstance(market_data, dict):
+            securities = market_data.get("securities")
+            if isinstance(securities, dict):
+                ohlcv = {
+                    ticker: payload.get("ohlcv")
+                    for ticker, payload in securities.items()
+                    if isinstance(payload, dict) and isinstance(payload.get("ohlcv"), list)
+                }
+                if ohlcv:
+                    collected["ohlcv"] = ohlcv
+
+            tail_ohlcv = market_data.get("tail_ohlcv")
+            if isinstance(tail_ohlcv, dict):
+                filtered = {
+                    k: v for k, v in tail_ohlcv.items() if isinstance(v, list)
+                }
+                if filtered:
+                    collected["tail_ohlcv"] = filtered
+
+        return collected
 
     def _build_layout(self, dashboard: RiskDashboardSpec) -> list[LayoutItem]:
         """Построить декларативный layout для рендерера."""
@@ -642,13 +1123,13 @@ class DashboardSubagent(BaseSubagent):
                 )
             )
 
-        if dashboard.alerts:
+        for table in dashboard.tables:
             layout.append(
                 LayoutItem(
-                    id="alerts",
-                    type=WidgetType.ALERT_LIST,
-                    title="Предупреждения",
-                    alert_ids=[alert.id for alert in dashboard.alerts],
+                    id=f"table_{table.id}",
+                    type=WidgetType.TABLE,
+                    title=table.title,
+                    table_id=table.id,
                 )
             )
 
@@ -662,13 +1143,13 @@ class DashboardSubagent(BaseSubagent):
                 )
             )
 
-        for table in dashboard.tables:
+        if dashboard.alerts:
             layout.append(
                 LayoutItem(
-                    id=f"table_{table.id}",
-                    type=WidgetType.TABLE,
-                    title=table.title,
-                    table_id=table.id,
+                    id="alerts",
+                    type=WidgetType.ALERT_LIST,
+                    title="Предупреждения",
+                    alert_ids=[alert.id for alert in dashboard.alerts],
                 )
             )
 
@@ -693,10 +1174,154 @@ class DashboardSubagent(BaseSubagent):
         max_weight = 0
         top_ticker = "Unknown"
         for instr in per_instrument:
-            weight = instr.get("weight", 0)
-            if weight > max_weight:
+            weight = instr.get("weight", instr.get("weight_pct", 0))
+            if weight and weight > max_weight:
                 max_weight = weight
                 top_ticker = instr.get("ticker", "Unknown")
 
         return top_ticker
+
+    def _normalize_correlation_data(self, raw: Any) -> Optional[dict[str, Any]]:
+        """Привести данные корреляций к детерминированному виду."""
+        if not raw:
+            return None
+        corr = raw
+        if isinstance(raw, dict) and "structuredContent" in raw:
+            corr = raw.get("structuredContent", {}).get("data") or raw
+
+        tickers = corr.get("tickers") if isinstance(corr, dict) else None
+        matrix = corr.get("matrix") if isinstance(corr, dict) else None
+        if not tickers or not matrix:
+            return None
+
+        try:
+            order = sorted(range(len(tickers)), key=lambda i: str(tickers[i]))
+            sorted_tickers = [tickers[i] for i in order]
+            sorted_matrix = [
+                [float(matrix[i][j]) for j in order] for i in order
+            ]
+        except Exception:
+            return None
+
+        return {"tickers": sorted_tickers, "matrix": sorted_matrix}
+
+    def _normalize_per_instrument(
+        self, per_instrument: list[Any], weight_from_fraction: bool
+    ) -> list[dict[str, Any]]:
+        """Нормализовать per_instrument в список метрик с weight_pct."""
+        normalized: list[dict[str, Any]] = []
+        for instr in per_instrument:
+            if not isinstance(instr, dict):
+                continue
+            weight_pct = instr.get("weight_pct")
+            if weight_pct is None:
+                raw_weight = instr.get("weight")
+                if raw_weight is not None:
+                    try:
+                        weight_val = float(raw_weight)
+                        if weight_from_fraction or weight_val <= 1:
+                            weight_pct = weight_val * 100
+                        else:
+                            weight_pct = weight_val
+                    except Exception:
+                        weight_pct = None
+            normalized.append(
+                {
+                    "ticker": instr.get("ticker"),
+                    "weight_pct": weight_pct,
+                    "total_return_pct": instr.get("total_return_pct"),
+                    "annualized_volatility_pct": instr.get("annualized_volatility_pct"),
+                    "max_drawdown_pct": instr.get("max_drawdown_pct"),
+                }
+            )
+        return normalized
+
+    def _normalize_market_securities(
+        self, market_data: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        """Нормализовать snapshots из market_data."""
+        normalized: dict[str, dict[str, Any]] = {}
+        if not isinstance(market_data, dict):
+            return normalized
+
+        securities = market_data.get("securities")
+        if not securities and market_data.get("ticker"):
+            ticker = market_data.get("ticker")
+            securities = {
+                ticker: {
+                    "snapshot": market_data.get("snapshot"),
+                    "ohlcv": market_data.get("ohlcv"),
+                }
+            }
+
+        if not isinstance(securities, dict):
+            return normalized
+
+        for ticker, payload in securities.items():
+            if not isinstance(payload, dict):
+                continue
+            snap = payload.get("snapshot") or {}
+            normalized[ticker] = {
+                "last_price": snap.get("last_price"),
+                "price_change_pct": snap.get("price_change_pct"),
+                "value": snap.get("value"),
+                "intraday_volatility_estimate": snap.get("intraday_volatility_estimate"),
+            }
+
+        return normalized
+
+    def _format_percent(self, value: Any, default: str = "нет данных") -> str:
+        """Форматировать значение как процент с 2 знаками."""
+        try:
+            return f"{float(value):.2f}"
+        except Exception:
+            return default
+
+    def _format_corr_value(self, value: Any, default: str = "нет данных") -> str:
+        """Форматировать корреляцию (без умножения на 100)."""
+        try:
+            return f"{float(value):.2f}"
+        except Exception:
+            return default
+
+    def _format_currency(self, value: Any, default: str = "нет данных") -> str:
+        """Форматировать денежное значение с разделителем тысяч."""
+        try:
+            return f"{float(value):,.0f}".replace(",", " ")
+        except Exception:
+            return default
+
+    def _format_number(
+        self, value: Any, decimals: int = 0, default: str = "нет данных"
+    ) -> str:
+        """Форматировать число с заданной точностью."""
+        try:
+            fmt = f"{{:.{decimals}f}}"
+            return fmt.format(float(value))
+        except Exception:
+            return default
+
+    def _compute_worst_stress_value(
+        self, base_value: float, stress_scenarios: Any
+    ) -> Optional[float]:
+        """Оценить стоимость портфеля в худшем стрессе."""
+        worst_pct = self._compute_worst_pnl_pct(stress_scenarios)
+        if worst_pct is None:
+            return None
+        return base_value * (1 + worst_pct / 100.0)
+
+    def _compute_worst_pnl_pct(self, stress_scenarios: Any) -> Optional[float]:
+        """Найти минимальный P&L % среди сценариев."""
+        if not isinstance(stress_scenarios, list):
+            return None
+        pnls = []
+        for scenario in stress_scenarios:
+            if isinstance(scenario, dict) and scenario.get("pnl_pct") is not None:
+                try:
+                    pnls.append(float(scenario.get("pnl_pct")))
+                except Exception:
+                    continue
+        if not pnls:
+            return None
+        return min(pnls)
 

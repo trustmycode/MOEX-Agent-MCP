@@ -390,6 +390,20 @@ class OrchestratorAgent:
         missing_required: list[str] = []
         planned_steps_payload: list[dict[str, Any]] = []
 
+        def _is_tool_supported(agent: Any, tool_name: str) -> bool:
+            if not tool_name:
+                return True
+
+            capabilities = getattr(agent, "capabilities", [])
+            try:
+                if tool_name in capabilities:
+                    return True
+            except Exception:
+                # capabilities может быть любым итерируемым; если нет — fallback на hasattr
+                pass
+
+            return hasattr(agent, tool_name)
+
         for raw in raw_steps:
             subagent = raw.get("subagent") or raw.get("subagent_name")
             if not subagent:
@@ -404,12 +418,24 @@ class OrchestratorAgent:
             depends_on = raw.get("depends_on") or raw.get("depends") or []
             if not isinstance(depends_on, list):
                 depends_on = []
-            tool = raw.get("tool") or raw.get("tool_name")
+            tool_raw = raw.get("tool") or raw.get("tool_name")
+            tool = tool_raw.strip() if isinstance(tool_raw, str) else None
             args = raw.get("args") if isinstance(raw.get("args"), dict) else {}
 
-            if subagent not in self.registry:
+            subagent_obj = self.registry.get(subagent)
+            if subagent_obj is None:
                 if required:
                     missing_required.append(subagent)
+                continue
+
+            if tool and not _is_tool_supported(subagent_obj, tool):
+                logger.warning(
+                    "Dynamic plan: tool '%s' is not supported by subagent '%s', skipping step",
+                    tool,
+                    subagent,
+                )
+                if required:
+                    missing_required.append(f"{subagent}:{tool}")
                 continue
 
             steps.append(

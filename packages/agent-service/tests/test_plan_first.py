@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from typing import Any
+
 from agent_service.core import BaseSubagent, SubagentRegistry
 from agent_service.core.context import AgentContext
 from agent_service.core.result import SubagentResult
@@ -10,8 +12,13 @@ from agent_service.orchestrator.orchestrator_agent import OrchestratorAgent
 
 
 class StubSubagent(BaseSubagent):
-    def __init__(self, name: str, payload: dict | None = None) -> None:
-        super().__init__(name=name, description=f"stub {name}", capabilities=[])
+    def __init__(
+        self,
+        name: str,
+        payload: dict | None = None,
+        capabilities: list[str] | None = None,
+    ) -> None:
+        super().__init__(name=name, description=f"stub {name}", capabilities=capabilities or [])
         self.payload = payload or {}
 
     async def execute(self, context: AgentContext) -> SubagentResult:  # type: ignore[override]
@@ -30,7 +37,7 @@ class PlannerStub(BaseSubagent):
 @pytest.mark.asyncio
 async def test_build_dynamic_pipeline_includes_tools() -> None:
     registry = SubagentRegistry()
-    registry.register(StubSubagent("market_data"))
+    registry.register(StubSubagent("market_data", capabilities=["get_index_constituents_metrics"]))
     registry.register(StubSubagent("explainer", {"text": "ok"}))
     orchestrator = OrchestratorAgent(registry=registry, plan_first_enabled=True)
     context = AgentContext(user_query="test")
@@ -135,5 +142,13 @@ class StubRiskAnalytics(StubSubagent):
     # Reuse logic from real subagent for compute_tail_metrics_planned
     from agent_service.subagents.risk_analytics import RiskAnalyticsSubagent
 
+    async def compute_tail_metrics(self, payload: dict[str, Any]) -> Any:
+        # Провоцируем fallback на локальный расчёт в _compute_tail_metrics_planned
+        raise RuntimeError("compute_tail_metrics MCP недоступен (stub)")
+
     _compute_tail_metrics_planned = RiskAnalyticsSubagent._compute_tail_metrics_planned  # type: ignore
+    _compute_tail_metrics_local = RiskAnalyticsSubagent._compute_tail_metrics_local  # type: ignore
+    _compute_basic_metrics_from_ohlcv_local = (
+        RiskAnalyticsSubagent._compute_basic_metrics_from_ohlcv_local  # type: ignore
+    )
 

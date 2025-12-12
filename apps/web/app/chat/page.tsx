@@ -3,6 +3,7 @@
 import type React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 import { DashboardRenderer } from "@/components/risk-dashboard/DashboardRenderer";
 import { RiskDashboardProvider, useRiskDashboard } from "@/components/risk-dashboard/DashboardContext";
 import { DashboardRenderMessage } from "@/components/risk-dashboard/DashboardRenderMessage";
@@ -55,7 +56,11 @@ function ChatPageInner() {
   const [error, setError] = useState<string | null>(null);
   const threadIdRef = useRef<string>(crypto.randomUUID());
 
-  const ajv = useMemo(() => new Ajv({ allErrors: true, strict: false }), []);
+  const ajv = useMemo(() => {
+    const instance = new Ajv({ allErrors: true, strict: false });
+    addFormats(instance);
+    return instance;
+  }, []);
   const validateDashboard = useMemo(() => ajv.compile(dashboardSchema as object), [ajv]);
   const { dashboard, applyDashboard, reset } = useRiskDashboard();
 
@@ -284,25 +289,10 @@ function ChatPageInner() {
             )}
           </div>
 
-          <div className="mb-4 flex-1 space-y-3 overflow-y-auto pr-1">
-            {messages.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-400">
-                История пуста. Спросите: «Оцени риск портфеля SBER/GAZP/LKOH».
-              </div>
-            ) : (
-              messages.map((msg, idx) => (
-                <DashboardRenderMessage
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={msg.id ?? idx}
-                  message={msg}
-                  index={idx}
-                  isCurrentMessage={idx === messages.length - 1}
-                />
-              ))
-            )}
-          </div>
-
-          <form onSubmit={handleSend} className="mt-auto flex flex-col gap-3">
+          <form
+            onSubmit={handleSend}
+            className="mb-4 flex flex-col gap-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3"
+          >
             <textarea
               className="min-h-[90px] w-full rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-white outline-none focus:border-emerald-500"
               placeholder="Например: оцени риск портфеля SBER 40%, GAZP 30%, LKOH 30%"
@@ -321,6 +311,24 @@ function ChatPageInner() {
               </button>
             </div>
           </form>
+
+          <div className="flex flex-1 flex-col space-y-3 overflow-y-auto pr-1 justify-end">
+            {messages.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-400">
+                История пуста. Спросите: «Оцени риск портфеля SBER/GAZP/LKOH».
+              </div>
+            ) : (
+              messages.map((msg, idx) => (
+                <DashboardRenderMessage
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={msg.id ?? idx}
+                  message={msg}
+                  index={idx}
+                  isCurrentMessage={idx === messages.length - 1}
+                />
+              ))
+            )}
+          </div>
         </section>
 
         <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-xl">
