@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_API_BASE = "https://foundation-models.api.cloud.ru/v1"
 DEFAULT_MODEL_MAIN = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 DEFAULT_MODEL_FALLBACK = "openai/gpt-oss-120b"
-DEFAULT_MODEL_DEV = "Qwen/Qwen3-235B-A22B-Instruct-2507"
+DEFAULT_MODEL_DEV = "openai/gpt-oss-120b"
 
 class EvolutionLLMClient:
     """

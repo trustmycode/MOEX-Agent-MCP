@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { RiskCockpit } from './RiskCockpit';
 import type { RiskDashboardSpec } from './types';
 import { useRiskDashboard } from './DashboardContext';
@@ -89,9 +89,7 @@ export function DashboardRenderMessage(props: RenderMessageProps) {
         className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-slate-100 shadow"
       >
         <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">assistant</p>
-        <div className="prose prose-invert max-w-none text-sm leading-relaxed">
-          <ReactMarkdown>{String(messageWithUI.content ?? '')}</ReactMarkdown>
-        </div>
+        <MarkdownRenderer className="text-sm leading-relaxed" content={String(messageWithUI.content ?? '')} />
         {messageWithUI.generativeUI?.()}
       </div>
     );
@@ -123,9 +121,7 @@ export function DashboardRenderMessage(props: RenderMessageProps) {
           className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-slate-100 shadow"
         >
           <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">assistant</p>
-          <div className="prose prose-invert max-w-none text-sm leading-relaxed">
-            <ReactMarkdown>{String(typedMessage.content ?? '')}</ReactMarkdown>
-          </div>
+        <MarkdownRenderer className="text-sm leading-relaxed" content={String(typedMessage.content ?? '')} />
           {typedMessage.generativeUI?.()}
           {onRegenerate && (
             <button

@@ -160,7 +160,7 @@ class ResearchPlannerSubagent(BaseSubagent):
             {"tool": "compute_tail_metrics", "required_args": ["ohlcv"], "optional_args": ["constituents"]},
         ],
         "dashboard": [
-            {"tool": "build_dashboard", "required_args": [], "optional_args": []},
+            {"tool": None, "required_args": [], "optional_args": []},
         ],
         "knowledge": [
             {"tool": "search_knowledge", "required_args": ["query"], "optional_args": ["limit"]},

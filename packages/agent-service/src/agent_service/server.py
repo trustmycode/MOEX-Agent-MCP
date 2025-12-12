@@ -91,10 +91,10 @@ def _build_registry() -> SubagentRegistry:
 
 def _build_orchestrator() -> OrchestratorAgent:
     """Создать экземпляр оркестратора с таймаутами из ENV."""
-    default_timeout = float(os.getenv("AGENT_STEP_TIMEOUT_SECONDS", "30"))
+    default_timeout = float(os.getenv("AGENT_STEP_TIMEOUT_SECONDS", "120"))
     enable_debug = os.getenv("AGENT_ENABLE_DEBUG", "true").lower() in {"1", "true", "yes", "y"}
     plan_first_enabled = os.getenv("AGENT_PLAN_FIRST", "true").lower() in {"1", "true", "yes", "y"}
-    planner_timeout = float(os.getenv("AGENT_PLANNER_TIMEOUT_SECONDS", "40"))
+    planner_timeout = float(os.getenv("AGENT_PLANNER_TIMEOUT_SECONDS", "60"))
     registry = _build_registry()
     return OrchestratorAgent(
         registry=registry,

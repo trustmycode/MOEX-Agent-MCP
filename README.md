@@ -31,6 +31,12 @@
 - `docker-compose.yml` — локальный стек (mcp + агент + web).
 - `docs/EVOLUTION_DEPLOY.md` — детали деплоя в Evolution AI Agents.
 
+## Документация по сервисам
+- `moex_iss_mcp/README.md` — запуск и переменные MCP данных MOEX ISS.
+- `risk_analytics_mcp/README.md` — запуск и параметры MCP риск-аналитики.
+- `apps/web/README.md` — Next.js UI, сборка и Docker.
+- `packages/agent-service/examples/README.md` — E2E/интерактивные сценарии агента и MCP.
+
 ## Конфигурация (.env)
 Скопируйте `env.example` → `.env` и заполните секреты.
 

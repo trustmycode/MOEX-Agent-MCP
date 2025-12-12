@@ -14,6 +14,9 @@ RUN pip install --upgrade pip && \
 # Копируем исходники агента без лишнего уровня вложенности
 COPY packages/agent-service/src/agent_service /app/agent_service
 
+# Копируем схемы для валидации (используются сервером для DASHBOARD_SCHEMA)
+COPY docs/schemas /app/docs/schemas
+
 ENV AGENT_PORT=8100 \
     LOG_LEVEL=INFO
 EXPOSE 8100

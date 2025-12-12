@@ -1,155 +1,49 @@
 # MOEX ISS MCP Server
 
-MCP сервер для предоставления данных Московской биржи (MOEX) через протокол MCP.
+MCP-сервер, который проксирует ISS API Московской биржи и отдаёт данные инструментов через протокол MCP. Используется A2A-агентом и сабагентами `market_data`/`risk_analytics`.
 
-## Описание
+## Что умеет
+- `get_security_snapshot` — текущая цена, изменение, ликвидность.
+- `get_ohlcv_timeseries` — OHLCV с метриками доходности/волатильности.
+- `get_index_constituents_metrics` — состав индекса с весами и агрегатами.
+- Эндпоинты: `GET /health`, `GET /metrics` (если включён мониторинг), `POST /mcp`.
 
-Сервер предоставляет доступ к данным MOEX через информационную систему ISS (Information & Statistics Server). Реализует инструменты для получения снимков инструментов, исторических данных OHLCV и метрик индексов.
+## Переменные окружения (дефолты в скобках)
+- `PORT` / `HOST` (`8000` / `0.0.0.0`)
+- `MOEX_ISS_BASE_URL` (`https://iss.moex.com/iss`)
+- `MOEX_ISS_RATE_LIMIT_RPS` (`3`) — ограничение запросов в секунду.
+- `MOEX_ISS_TIMEOUT_SECONDS` (`10`)
+- `ENABLE_MONITORING` (`false`) — включает Prometheus метрики на `/metrics`.
+- `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME` — экспорт трейсов (опционально).
+- `MOEX_API_KEY` — нужен только при платном доступе к ISS.
+- Подхватывает `.env.mcp`, затем `.env`, затем `.env.sdk` (см. `env.example`).
 
-## Возможности
-
-- **get_security_snapshot** - получение краткого снимка инструмента (цена, изменение, ликвидность)
-- **get_ohlcv_timeseries** - получение временного ряда OHLCV с расчётом метрик
-- **get_index_constituents_metrics** - получение метрик компонентов индекса
-
-## Требования
-
-- Python 3.12+
-- Зависимости из `pyproject.toml`
-
-## Переменные окружения
-
-### Обязательные переменные
-
-Все переменные опциональны, так как есть значения по умолчанию.
-
-### Необязательные переменные
-
-- `PORT` - Порт сервера (по умолчанию: 8000)
-- `HOST` - Хост сервера (по умолчанию: 0.0.0.0)
-- `MOEX_ISS_BASE_URL` - Базовый URL MOEX ISS API (по умолчанию: https://iss.moex.com/iss)
-- `MOEX_ISS_RATE_LIMIT_RPS` - Лимит запросов к MOEX ISS (запросов в секунду, по умолчанию: 3.0)
-- `MOEX_ISS_TIMEOUT_SECONDS` - Таймаут запросов к MOEX ISS (секунды, по умолчанию: 10.0)
-- `ENABLE_MONITORING` - Включить мониторинг (Prometheus метрики, по умолчанию: false)
-- `OTEL_ENDPOINT` - OpenTelemetry endpoint для экспорта трейсов (опционально)
-- `OTEL_SERVICE_NAME` - Имя сервиса для OpenTelemetry (опционально)
-
-## Deploy to Evolution
-
-- **rawEnvs**:  
-  - `PORT` — например `8000`  
-  - `HOST` — например `0.0.0.0`  
-  - `MOEX_ISS_BASE_URL` — например `https://iss.moex.com/iss/`  
-  - `MOEX_ISS_RATE_LIMIT_RPS` — например `3`  
-  - `MOEX_ISS_TIMEOUT_SECONDS` — например `10`  
-  - `ENABLE_MONITORING` — `false`/`true`  
-  - `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME` — при необходимости трейсов  
-  - `LOG_LEVEL` — например `INFO`
-- **secretEnvs**:  
-  - `MOEX_API_KEY` — если используется платный доступ ISS.
-- **Порты**: HTTP `8000` (экспонируется `EXPOSE 8000` в Dockerfile).
-- **Команда запуска**: `python -m moex_iss_mcp.main` (совпадает с Dockerfile).
-
-## Локальный запуск
-
-1. Установите зависимости:
+## Быстрый старт локально
 ```bash
+cd /Users/Admin/CursorProject/MOEX-Agent-MCP
 uv sync
+uv run python -m moex_iss_mcp.main    # http://localhost:8000
+curl http://localhost:8000/health
 ```
+Для запуска всех сервисов сразу используйте `make local-up` в корне — поднимется `moex-iss-mcp:8000`, `risk-analytics-mcp:8010`, агент и web.
 
-2. Создайте файл `.env` (опционально):
+## Docker / docker-compose
+- Собрать образ: `docker build -t moex-iss-mcp:local -f moex_iss_mcp/Dockerfile .`
+- Запуск: `docker run -p 8000:8000 --env-file env.example moex-iss-mcp:local`
+- В составе стека: `make local-up` (compose в корне).
+
+## Деплой в Evolution AI Agents
+- Соберите и запушьте образ `linux/amd64`, например:
 ```bash
-cp .env.example .env
-# Отредактируйте .env файл при необходимости
+docker buildx build --platform linux/amd64 -t <registry>/<project>/moex-iss-mcp:<tag> -f moex_iss_mcp/Dockerfile .
+docker push <registry>/<project>/moex-iss-mcp:<tag>
 ```
+- Зарегистрируйте MCP с транспортом `streamable-http`, endpoint `/mcp`, health `/health`.
+- rawEnvs: `PORT`, `HOST`, `MOEX_ISS_BASE_URL`, `MOEX_ISS_RATE_LIMIT_RPS`, `MOEX_ISS_TIMEOUT_SECONDS`, `ENABLE_MONITORING`, `OTEL_*`.
+- secretEnvs: `MOEX_API_KEY` (если требуется).
 
-3. Запустите сервер:
-```bash
-uv run python -m moex_iss_mcp.main
-```
-
-Сервер будет доступен по адресу `http://localhost:8000/mcp`
-
-## Использование инструментов
-
-### `get_security_snapshot` - Получить снимок инструмента
-
-Получает актуальные данные о цене, объёмах торгов и базовых метриках финансового инструмента.
-
-**Параметры:**
-- `ticker` (str, обязательный) - Тикер бумаги, например 'SBER'
-- `board` (str, опциональный) - Борд MOEX, например 'TQBR' (по умолчанию 'TQBR')
-
-**Возвращает:**
-- Данные о последней цене, изменении, объёмах
-- Оценку внутридневной волатильности
-
-**Пример:**
-```python
-result = await get_security_snapshot(ticker="SBER", board="TQBR", ctx=ctx)
-```
-
-### `get_ohlcv_timeseries` - Получить временной ряд OHLCV
-
-Возвращает исторические данные о ценах и объёмах торгов за заданный период.
-
-**Параметры:**
-- `ticker` (str, обязательный) - Тикер бумаги, например 'SBER'
-- `board` (str, опциональный) - Борд MOEX, например 'TQBR' (по умолчанию 'TQBR')
-- `from_date` (str, опциональный) - Начальная дата периода в формате YYYY-MM-DD
-- `to_date` (str, опциональный) - Конечная дата периода в формате YYYY-MM-DD
-- `interval` (str, опциональный) - Интервал агрегации: '1d' (дневной) или '1h' (часовой)
-
-**Возвращает:**
-- Временной ряд OHLCV данных
-- Рассчитанные метрики: общая доходность, годовая волатильность, средний объём
-
-**Пример:**
-```python
-result = await get_ohlcv_timeseries(
-    ticker="SBER",
-    from_date="2024-01-01",
-    to_date="2024-12-31",
-    interval="1d",
-    ctx=ctx
-)
-```
-
-### `get_index_constituents_metrics` - Получить метрики компонентов индекса
-
-Возвращает список компонентов указанного индекса с их весами, ценами и метриками.
-
-**Параметры:**
-- `index_ticker` (str, обязательный) - Тикер индекса, например 'IMOEX' или 'RTSI'
-- `as_of_date` (str, опциональный) - Дата, на которую получить состав индекса в формате YYYY-MM-DD
-
-**Возвращает:**
-- Список компонентов индекса с весами и метриками
-- Концентрационные метрики (топ-5 бумаг)
-
-**Пример:**
-```python
-result = await get_index_constituents_metrics(
-    index_ticker="IMOEX",
-    as_of_date="2024-12-31",
-    ctx=ctx
-)
-```
-
-## Эндпоинты
-
-- `GET /health` - Проверка здоровья сервера
-- `GET /metrics` - Prometheus метрики (если включён мониторинг)
-- `POST /mcp` - MCP протокол
-
-## Мониторинг
-
-При включённом мониторинге (`ENABLE_MONITORING=true`) сервер экспортирует Prometheus метрики:
-- Количество вызовов инструментов
-- Количество ошибок по типам
-- Латентность выполнения инструментов
-
-## Трейсинг
-
-При настройке OpenTelemetry (`OTEL_ENDPOINT`) сервер отправляет трейсы операций для анализа производительности и отладки.
+## Траблшутинг
+- 429/ограничения: уменьшите частоту или поднимите `MOEX_ISS_RATE_LIMIT_RPS` при наличии квоты.
+- Таймауты: увеличьте `MOEX_ISS_TIMEOUT_SECONDS` или проверьте доступность `iss.moex.com`.
+- Нет трейсов/метрик: убедитесь, что заданы `ENABLE_MONITORING=true` или `OTEL_ENDPOINT`.
 

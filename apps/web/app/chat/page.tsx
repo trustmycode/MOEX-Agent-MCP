@@ -278,10 +278,10 @@ function ChatPageInner() {
   return (
     <main className="min-h-screen bg-background p-6 lg:p-10">
       <div className="mb-6 space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">AG-UI · Chat</p>
-        <h1 className="text-3xl font-semibold text-white lg:text-4xl">Чат и дашборд</h1>
+        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">AG-UI · MOEX Risk</p>
+        <h1 className="text-3xl font-semibold text-white lg:text-4xl">Чат с агентом и риск-дашборд</h1>
         <p className="max-w-3xl text-slate-300">
-          Отправьте запрос — поток AG-UI событий (SSE). Сообщения идут в чат, дашборд рендерится отдельно.
+          Формулируйте запросы по портфельному риску и аналитике MOEX. Агент отвечает по SSE: текстовые сообщения приходят в чат, а структурированные STATE_SNAPSHOT рендерят дашборд ниже.
         </p>
       </div>
 
@@ -305,7 +305,7 @@ function ChatPageInner() {
           >
             <textarea
               className="min-h-[90px] w-full rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm text-white outline-none focus:border-emerald-500"
-              placeholder="Например: оцени риск портфеля SBER 40%, GAZP 30%, LKOH 30%"
+              placeholder="Например: «оцени риск портфеля SBER 40%, GAZP 30%, LKOH 30%» или «собери дашборд по stress-test»"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={runStatus === "running"}
@@ -326,7 +326,7 @@ function ChatPageInner() {
           <div className="flex flex-1 flex-col space-y-3 overflow-y-auto pr-1 justify-end">
             {messages.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-400">
-                История пуста. Спросите: «Оцени риск портфеля SBER/GAZP/LKOH».
+                История пуста. Спросите: «оцени риск портфеля SBER/GAZP/LKOH» или «построй stress-сценарии».
               </div>
             ) : (
               messages.map((msg, idx) => (
@@ -356,7 +356,7 @@ function ChatPageInner() {
               <DashboardRenderer spec={dashboard} validationErrors={schemaErrors} />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-400">
-                Дашборд пока не получен. Отправьте сообщение, чтобы агент вернул layout.
+                Дашборд пока не получен. Отправьте запрос — агент пришлёт STATE_SNAPSHOT и layout для рендера.
               </div>
             )}
           </div>
