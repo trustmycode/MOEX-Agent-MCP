@@ -1,26 +1,38 @@
 {
-  "$id": "https://moex-agent-mcp/schemas/risk-dashboard.schema.json",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "definitions": {
-    "alert": {
-      "additionalProperties": false,
+  "$defs": {
+    "Alert": {
+      "description": "Алерт/предупреждение для отображения на дашборде.\n\nAlerts отображают ключевые «красные флаги» портфеля:\n- превышение лимитов концентрации\n- VaR близок к лимиту\n- сильные стресс-потери\n\nAttributes:\n    id: Идентификатор алерта.\n    severity: Уровень критичности (info, warning, critical).\n    message: Текст сообщения на русском.\n    related_ids: Список связанных идентификаторов (метрики, тикеры).",
+      "example": {
+        "id": "issuer_concentration",
+        "message": "Концентрация по эмитенту SBER превышает лимит 15%.",
+        "related_ids": [
+          "ticker:SBER",
+          "metric:top1_weight_pct"
+        ],
+        "severity": "warning"
+      },
       "properties": {
         "id": {
+          "description": "Идентификатор алерта",
+          "title": "Id",
           "type": "string"
         },
+        "severity": {
+          "$ref": "#/$defs/AlertSeverity",
+          "description": "Уровень критичности"
+        },
         "message": {
+          "description": "Текст сообщения на русском",
+          "title": "Message",
           "type": "string"
         },
         "related_ids": {
-          "default": [],
+          "description": "Список связанных идентификаторов",
           "items": {
             "type": "string"
           },
+          "title": "Related Ids",
           "type": "array"
-        },
-        "severity": {
-          "$ref": "#/definitions/severity"
         }
       },
       "required": [
@@ -28,75 +40,56 @@
         "severity",
         "message"
       ],
+      "title": "Alert",
       "type": "object"
     },
-    "chart": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "series": {
-          "items": {
-            "$ref": "#/definitions/chartSeries"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "line",
-            "bar",
-            "pie"
-          ],
-          "type": "string"
-        },
-        "x_axis": {
-          "$ref": "#/definitions/chartAxis"
-        },
-        "y_axis": {
-          "$ref": "#/definitions/chartAxis"
-        }
-      },
-      "required": [
-        "id",
-        "type",
-        "title",
-        "series"
+    "AlertSeverity": {
+      "description": "Уровень критичности алерта.",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
       ],
-      "type": "object"
+      "title": "AlertSeverity",
+      "type": "string"
     },
-    "chartAxis": {
-      "additionalProperties": false,
+    "ChartAxis": {
+      "description": "Определение оси графика.\n\nAttributes:\n    field: Имя поля данных для этой оси.\n    label: Отображаемая подпись оси.",
       "properties": {
         "field": {
+          "description": "Имя поля данных",
+          "title": "Field",
           "type": "string"
         },
         "label": {
+          "description": "Отображаемая подпись оси",
+          "title": "Label",
           "type": "string"
         }
       },
       "required": [
-        "field"
+        "field",
+        "label"
       ],
+      "title": "ChartAxis",
       "type": "object"
     },
-    "chartSeries": {
-      "additionalProperties": false,
+    "ChartSeries": {
+      "description": "Серия данных для графика.\n\nAttributes:\n    id: Идентификатор серии.\n    label: Отображаемое название серии.\n    data_ref: Ссылка на источник данных.",
       "properties": {
-        "color": {
+        "id": {
+          "description": "Идентификатор серии",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "description": "Отображаемое название серии",
+          "title": "Label",
           "type": "string"
         },
         "data_ref": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "label": {
+          "description": "Ссылка на источник данных",
+          "title": "Data Ref",
           "type": "string"
         }
       },
@@ -105,83 +98,291 @@
         "label",
         "data_ref"
       ],
+      "title": "ChartSeries",
       "type": "object"
     },
-    "layoutItem": {
-      "additionalProperties": false,
+    "ChartSpec": {
+      "description": "Спецификация графика для отображения на дашборде.\n\nAttributes:\n    id: Идентификатор графика.\n    type: Тип графика (line, bar, pie, heatmap).\n    title: Заголовок графика.\n    x_axis: Определение оси X.\n    y_axis: Определение оси Y.\n    series: Список серий данных.",
+      "example": {
+        "id": "equity_curve",
+        "series": [
+          {
+            "data_ref": "time_series.portfolio_value",
+            "id": "portfolio",
+            "label": "Портфель"
+          }
+        ],
+        "title": "Динамика стоимости портфеля",
+        "type": "line",
+        "x_axis": {
+          "field": "date",
+          "label": "Дата"
+        },
+        "y_axis": {
+          "field": "value",
+          "label": "Стоимость, млн ₽"
+        }
+      },
       "properties": {
-        "alert_ids": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "chart_id": {
-          "type": "string"
-        },
-        "columns": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "description": {
-          "type": "string"
-        },
         "id": {
-          "type": "string"
-        },
-        "metric_ids": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "options": {
-          "additionalProperties": true,
-          "type": "object"
-        },
-        "table_id": {
-          "type": "string"
-        },
-        "title": {
+          "description": "Идентификатор графика",
+          "title": "Id",
           "type": "string"
         },
         "type": {
-          "enum": [
-            "kpi_grid",
-            "table",
-            "chart",
-            "alert_list",
-            "text"
-          ],
+          "$ref": "#/$defs/ChartType",
+          "description": "Тип графика"
+        },
+        "title": {
+          "description": "Заголовок графика",
+          "title": "Title",
           "type": "string"
+        },
+        "x_axis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartAxis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Определение оси X"
+        },
+        "y_axis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartAxis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Определение оси Y"
+        },
+        "series": {
+          "description": "Список серий данных",
+          "items": {
+            "$ref": "#/$defs/ChartSeries"
+          },
+          "title": "Series",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "title"
+      ],
+      "title": "ChartSpec",
+      "type": "object"
+    },
+    "ChartType": {
+      "description": "Тип графика.",
+      "enum": [
+        "line",
+        "bar",
+        "pie",
+        "heatmap"
+      ],
+      "title": "ChartType",
+      "type": "string"
+    },
+    "DashboardMetadata": {
+      "description": "Метаданные дашборда.\n\nAttributes:\n    as_of: Момент времени, на который актуальны метрики.\n    scenario_type: Тип сценария (portfolio_risk_basic, index_risk_scan и т.п.).\n    base_currency: Базовая валюта портфеля.\n    portfolio_id: Опциональный идентификатор портфеля.",
+      "properties": {
+        "as_of": {
+          "description": "Момент времени актуальности метрик",
+          "format": "date-time",
+          "title": "As Of",
+          "type": "string"
+        },
+        "scenario_type": {
+          "default": "portfolio_risk_basic",
+          "description": "Тип сценария",
+          "title": "Scenario Type",
+          "type": "string"
+        },
+        "base_currency": {
+          "default": "RUB",
+          "description": "Базовая валюта",
+          "title": "Base Currency",
+          "type": "string"
+        },
+        "portfolio_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Идентификатор портфеля",
+          "title": "Portfolio Id"
+        }
+      },
+      "title": "DashboardMetadata",
+      "type": "object"
+    },
+    "LayoutItem": {
+      "description": "Элемент layout-декларации для детерминированного рендера JSON → UI.",
+      "properties": {
+        "id": {
+          "description": "Идентификатор элемента layout",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/WidgetType",
+          "description": "Тип виджета"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Заголовок блока",
+          "title": "Title"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Описание блока",
+          "title": "Description"
+        },
+        "metric_ids": {
+          "description": "Список идентификаторов метрик для KPI-грида",
+          "items": {
+            "type": "string"
+          },
+          "title": "Metric Ids",
+          "type": "array"
+        },
+        "chart_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID графика для рендера",
+          "title": "Chart Id"
+        },
+        "table_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID таблицы для рендера",
+          "title": "Table Id"
+        },
+        "alert_ids": {
+          "description": "Список алертов для блока alert_list",
+          "items": {
+            "type": "string"
+          },
+          "title": "Alert Ids",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Желаемое количество колонок в гриде",
+          "title": "Columns"
+        },
+        "options": {
+          "additionalProperties": true,
+          "description": "Дополнительные опции для виджета",
+          "title": "Options",
+          "type": "object"
         }
       },
       "required": [
         "id",
         "type"
       ],
+      "title": "LayoutItem",
       "type": "object"
     },
-    "metric": {
-      "additionalProperties": false,
+    "Metric": {
+      "description": "Числовая метрика для layout-визуализации (v1 контракт).\n\nИспользуется фронтендом для рендеринга KPI-гридов без дополнительных\nпреобразований строк.",
       "properties": {
-        "change": {
-          "type": "number"
-        },
         "id": {
+          "description": "Машинно-читаемый идентификатор метрики",
+          "title": "Id",
           "type": "string"
         },
         "label": {
-          "type": "string"
-        },
-        "severity": {
-          "$ref": "#/definitions/severity"
-        },
-        "unit": {
+          "description": "Название метрики",
+          "title": "Label",
           "type": "string"
         },
         "value": {
+          "description": "Числовое значение метрики",
+          "title": "Value",
           "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Единица измерения",
+          "title": "Unit"
+        },
+        "change": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Изменение за период, %",
+          "title": "Change"
+        },
+        "severity": {
+          "$ref": "#/$defs/MetricSeverity",
+          "default": "info",
+          "description": "Уровень важности/риска"
         }
       },
       "required": [
@@ -189,9 +390,63 @@
         "label",
         "value"
       ],
+      "title": "Metric",
       "type": "object"
     },
-    "severity": {
+    "MetricCard": {
+      "description": "Карточка ключевой метрики для отображения на дашборде.\n\nAttributes:\n    id: Машинно-читаемый идентификатор метрики.\n    title: Человекочитаемое название на русском.\n    value: Отформатированное значение метрики (строка).\n    change: Опциональное изменение за период (например, \"+5.2%\").\n    status: Уровень важности/риска (normal, warning, critical).",
+      "example": {
+        "change": "+2.1%",
+        "id": "portfolio_total_return_pct",
+        "status": "normal",
+        "title": "Доходность портфеля",
+        "value": "11.63%"
+      },
+      "properties": {
+        "id": {
+          "description": "Машинно-читаемый идентификатор метрики",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Человекочитаемое название на русском",
+          "title": "Title",
+          "type": "string"
+        },
+        "value": {
+          "description": "Отформатированное значение метрики",
+          "title": "Value",
+          "type": "string"
+        },
+        "change": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Изменение за период (например, '+5.2%')",
+          "title": "Change"
+        },
+        "status": {
+          "$ref": "#/$defs/MetricSeverity",
+          "default": "info",
+          "description": "Уровень важности/риска"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "value"
+      ],
+      "title": "MetricCard",
+      "type": "object"
+    },
+    "MetricSeverity": {
+      "description": "Уровень важности/риска для метрики.",
       "enum": [
         "info",
         "low",
@@ -200,52 +455,20 @@
         "high",
         "critical"
       ],
+      "title": "MetricSeverity",
       "type": "string"
     },
-    "table": {
-      "additionalProperties": false,
+    "TableColumn": {
+      "description": "Определение колонки таблицы.\n\nAttributes:\n    id: Идентификатор колонки (соответствует ключу в данных).\n    label: Отображаемое название колонки.",
       "properties": {
-        "columns": {
-          "items": {
-            "$ref": "#/definitions/tableColumn"
-          },
-          "type": "array"
-        },
-        "data_ref": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
         "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "columns",
-        "data_ref"
-      ],
-      "type": "object"
-    },
-    "tableColumn": {
-      "additionalProperties": false,
-      "properties": {
-        "align": {
-          "enum": [
-            "left",
-            "right",
-            "center"
-          ],
-          "type": "string"
-        },
-        "id": {
+          "description": "Идентификатор колонки",
+          "title": "Id",
           "type": "string"
         },
         "label": {
+          "description": "Отображаемое название колонки",
+          "title": "Label",
           "type": "string"
         }
       },
@@ -253,72 +476,190 @@
         "id",
         "label"
       ],
+      "title": "TableColumn",
       "type": "object"
+    },
+    "TableSpec": {
+      "description": "Спецификация таблицы для отображения на дашборде.\n\nAttributes:\n    id: Идентификатор таблицы.\n    title: Заголовок таблицы.\n    columns: Список определений колонок.\n    rows: Данные таблицы — список строк, каждая строка — список значений.\n    data_ref: Ссылка на источник данных (для фронтенда).",
+      "example": {
+        "columns": [
+          {
+            "id": "ticker",
+            "label": "Тикер"
+          },
+          {
+            "id": "weight_pct",
+            "label": "Вес, %"
+          },
+          {
+            "id": "total_return_pct",
+            "label": "Доходность, %"
+          }
+        ],
+        "data_ref": "data.per_instrument",
+        "id": "positions",
+        "rows": [
+          [
+            "SBER",
+            "25.0",
+            "15.2"
+          ],
+          [
+            "GAZP",
+            "20.0",
+            "8.5"
+          ]
+        ],
+        "title": "Позиции портфеля"
+      },
+      "properties": {
+        "id": {
+          "description": "Идентификатор таблицы",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Заголовок таблицы",
+          "title": "Title",
+          "type": "string"
+        },
+        "columns": {
+          "description": "Список определений колонок",
+          "items": {
+            "$ref": "#/$defs/TableColumn"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "rows": {
+          "description": "Данные таблицы — список строк",
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ссылка на источник данных",
+          "title": "Data Ref"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "TableSpec",
+      "type": "object"
+    },
+    "WidgetType": {
+      "description": "Тип UI-виджета дашборда.",
+      "enum": [
+        "kpi_grid",
+        "table",
+        "chart",
+        "alert_list",
+        "text"
+      ],
+      "title": "WidgetType",
+      "type": "string"
     }
   },
-  "description": "Версионированный контракт RiskDashboardSpec для AG-UI layout.",
+  "description": "Полная спецификация Risk Dashboard для UI/AGI UI.\n\nЭто доменно-ориентированный профиль, оптимизированный под сценарии\nпортфельного риска (7) и связанные сценарии (5/9).\n\nИспользуется как `output.dashboard` в A2A-ответе агента и как\npayload backend-события `type=\"risk_dashboard\"` для AGI UI.\n\nAttributes:\n    metadata: Метаданные дашборда (время, сценарий, валюта).\n    metric_cards: Список карточек ключевых метрик.\n    tables: Список таблиц (позиции, стресс-сценарии и т.п.).\n    charts: Список графиков (equity curve, веса и т.п.).\n    alerts: Список алертов/предупреждений.\n    raw_data: Опциональные сырые данные для графиков (time_series и т.п.).",
+  "example": {
+    "alerts": [],
+    "charts": [],
+    "metadata": {
+      "as_of": "2025-12-11T10:00:00Z",
+      "base_currency": "RUB",
+      "portfolio_id": "demo-portfolio-001",
+      "scenario_type": "portfolio_risk_basic"
+    },
+    "metric_cards": [
+      {
+        "id": "portfolio_total_return_pct",
+        "status": "info",
+        "title": "Доходность портфеля за период",
+        "value": "11.63%"
+      }
+    ],
+    "tables": []
+  },
   "properties": {
-    "alerts": {
+    "version": {
+      "default": "1.0",
+      "description": "Версия контракта RiskDashboardSpec (layout v1.0).",
+      "title": "Version",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/DashboardMetadata",
+      "description": "Метаданные дашборда"
+    },
+    "metrics": {
+      "description": "Структурированные метрики (KPI) для AG-UI layout",
       "items": {
-        "$ref": "#/definitions/alert"
+        "$ref": "#/$defs/Metric"
       },
+      "title": "Metrics",
+      "type": "array"
+    },
+    "layout": {
+      "description": "Декларация расположения виджетов для рендера",
+      "items": {
+        "$ref": "#/$defs/LayoutItem"
+      },
+      "title": "Layout",
+      "type": "array"
+    },
+    "metric_cards": {
+      "description": "Список карточек ключевых метрик",
+      "items": {
+        "$ref": "#/$defs/MetricCard"
+      },
+      "title": "Metric Cards",
+      "type": "array"
+    },
+    "tables": {
+      "description": "Список таблиц",
+      "items": {
+        "$ref": "#/$defs/TableSpec"
+      },
+      "title": "Tables",
       "type": "array"
     },
     "charts": {
+      "description": "Список графиков",
       "items": {
-        "$ref": "#/definitions/chart"
+        "$ref": "#/$defs/ChartSpec"
       },
+      "title": "Charts",
+      "type": "array"
+    },
+    "alerts": {
+      "description": "Список алертов/предупреждений",
+      "items": {
+        "$ref": "#/$defs/Alert"
+      },
+      "title": "Alerts",
       "type": "array"
     },
     "data": {
       "additionalProperties": true,
-      "description": "Сырые табличные данные, referenced через data_ref",
+      "description": "Сырые данные (tables/charts) для data_ref ссылок",
+      "title": "Data",
       "type": "object"
-    },
-    "layout": {
-      "description": "Декларативный список виджетов (JSON → React render)",
-      "items": {
-        "$ref": "#/definitions/layoutItem"
-      },
-      "type": "array"
-    },
-    "metadata": {
-      "additionalProperties": false,
-      "description": "Метаданные дашборда",
-      "properties": {
-        "as_of": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "base_currency": {
-          "type": "string"
-        },
-        "portfolio_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "scenario_type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "as_of"
-      ],
-      "type": "object"
-    },
-    "metrics": {
-      "items": {
-        "$ref": "#/definitions/metric"
-      },
-      "type": "array"
-    },
-    "tables": {
-      "items": {
-        "$ref": "#/definitions/table"
-      },
-      "type": "array"
     },
     "time_series": {
       "additionalProperties": {
@@ -329,19 +670,25 @@
         "type": "array"
       },
       "description": "Временные ряды для графиков",
+      "title": "Time Series",
       "type": "object"
     },
-    "version": {
-      "description": "Версия контракта. Текущая — 1.0",
-      "pattern": "^1\\.0(\\.\\d+)?$",
-      "type": "string"
+    "raw_data": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Сырые данные для графиков (time_series и т.п.)",
+      "title": "Raw Data"
     }
   },
-  "required": [
-    "version",
-    "metadata",
-    "layout"
-  ],
-  "title": "RiskDashboardSpec v1.0",
+  "title": "RiskDashboardSpec",
   "type": "object"
 }
+

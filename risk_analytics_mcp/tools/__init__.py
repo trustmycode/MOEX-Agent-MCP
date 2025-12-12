@@ -7,6 +7,7 @@ from .portfolio_risk import compute_portfolio_risk_basic, compute_portfolio_risk
 from .issuer_peers_compare import issuer_peers_compare, issuer_peers_compare_core
 from .suggest_rebalance import suggest_rebalance, suggest_rebalance_core
 from .cfo_liquidity_report import build_cfo_liquidity_report, build_cfo_liquidity_report_core
+from .compute_tail_metrics import compute_tail_metrics
 
 __all__ = [
     "compute_portfolio_risk_basic_core",
@@ -19,4 +20,5 @@ __all__ = [
     "suggest_rebalance",
     "build_cfo_liquidity_report_core",
     "build_cfo_liquidity_report",
+    "compute_tail_metrics",
 ]

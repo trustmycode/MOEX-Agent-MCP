@@ -36,6 +36,12 @@ tools:
       max_peers: "integer - Максимальное число пиров (по умолчанию 10, максимум 100)"
       as_of_date: "string - Дата среза данных в формате YYYY-MM-DD"
 
+  - name: "compute_tail_metrics"
+    description: "Рассчитать метрики хвоста индекса (доходность, волатильность, max drawdown) по OHLCV выбранных компонентов"
+    parameters:
+      ohlcv: "object - OHLCV по тикерам: {ticker: [{close: ...}, ...]}"
+      constituents: "array - Опциональный список компонентов с weight_pct"
+
 rawEnvs:
   RISK_MCP_PORT:
     isRequired: false

@@ -182,7 +182,41 @@ class DashboardSubagent(BaseSubagent):
             dashboard.raw_data = {"time_series": dashboard.time_series}
 
         # 6. Layout: декларативный список виджетов для AG-UI
+        has_content = bool(
+            dashboard.metric_cards
+            or dashboard.metrics
+            or dashboard.tables
+            or dashboard.charts
+            or dashboard.alerts
+        )
+
+        fallback_message = None
+        if not has_content:
+            message_candidate = (
+                risk_data.get("message") if isinstance(risk_data, dict) else None
+            )
+            fallback_message = (
+                str(message_candidate)
+                if message_candidate
+                else "Данные для дашборда недоступны"
+            )
+            dashboard.add_alert(
+                id="no_data",
+                severity=AlertSeverity.WARNING,
+                message=fallback_message,
+                related_ids=[],
+            )
+
         dashboard.layout = self._build_layout(dashboard)
+        if fallback_message:
+            dashboard.layout.append(
+                LayoutItem(
+                    id="no_data_text",
+                    type=WidgetType.TEXT,
+                    title="Описание",
+                    description=fallback_message,
+                )
+            )
 
         return dashboard
 

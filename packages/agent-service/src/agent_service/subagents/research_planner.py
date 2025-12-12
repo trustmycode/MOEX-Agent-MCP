@@ -81,6 +81,10 @@ class PlannedStep(BaseModel):
     subagent_name: str = Field(..., alias="subagent")
     description: str = Field(..., alias="description")
     required: bool = Field(default=True)
+    tool_name: Optional[str] = Field(default=None, alias="tool")
+    args: dict[str, Any] = Field(default_factory=dict, alias="args")
+    depends_on: list[str] = Field(default_factory=list, alias="depends_on")
+    timeout_seconds: Optional[float] = Field(default=None, alias="timeout_seconds")
 
 
 class PlannerOutput(BaseModel):
@@ -100,6 +104,61 @@ class ResearchPlannerSubagent(BaseSubagent):
     SUBAGENT_NAME = "research_planner"
     SUPPORTED_SUBAGENTS = {"market_data", "risk_analytics", "dashboard", "explainer", "knowledge"}
     MAX_STEPS = 5
+    FEW_SHOTS: list[str] = [
+        # Анализ индекса
+        '{"reasoning": "Анализ индекса: берём состав и отвечаем текстом", "steps": ['
+        '{"subagent": "market_data", "tool": "get_index_constituents_metrics", "args": {"index_ticker": "IMOEX", "as_of_date": "2024-12-01"}, "depends_on": [], "description": "состав индекса", "required": true},'
+        '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["market_data"], "description": "текстовый ответ", "required": true}'
+        ']}',
+        # Портфельный риск
+        '{"reasoning": "Портфель: сразу считаем риск по позициям и строим дашборд", "steps": ['
+        '{"subagent": "risk_analytics", "tool": "compute_portfolio_risk_basic", "args": {"positions": [{"ticker": "SBER", "weight": 0.5}, {"ticker": "GAZP", "weight": 0.5}], "from_date": "2024-10-01", "to_date": "2024-12-01"}, "depends_on": [], "description": "расчёт риска", "required": true},'
+        '{"subagent": "dashboard", "tool": "build_dashboard", "args": {}, "depends_on": ["risk_analytics"], "description": "собрать дашборд", "required": false},'
+        '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "итоговый текст", "required": true}'
+        ']}',
+        # Один тикер
+        '{"reasoning": "Один тикер: берём snapshot и историю, потом объясняем", "steps": ['
+        '{"subagent": "market_data", "tool": "get_security_snapshot", "args": {"ticker": "SBER", "board": "TQBR"}, "depends_on": [], "description": "snapshot тикера", "required": true},'
+        '{"subagent": "market_data", "tool": "get_ohlcv_timeseries", "args": {"ticker": "SBER", "from_date": "2024-11-01", "to_date": "2024-12-01", "interval": "1d"}, "depends_on": ["market_data"], "description": "история цен", "required": false},'
+        '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["market_data"], "description": "итоговый текст", "required": true}'
+        ']}',
+        # Сравнение тикеров
+        '{"reasoning": "Сравнение тикеров: считаем корреляции и объясняем", "steps": ['
+        '{"subagent": "risk_analytics", "tool": "compute_correlation_matrix", "args": {"tickers": ["SBER", "GAZP"], "from_date": "2024-11-01", "to_date": "2024-12-01"}, "depends_on": [], "description": "корреляции", "required": true},'
+        '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "текстовый ответ", "required": true}'
+        ']}',
+        # Индекс: хвост по весу
+        '{"reasoning": "Индекс: взять хвост по весу, получить цены за месяц и объяснить", "steps": ['
+        '{"subagent": "market_data", "tool": "get_index_constituents_metrics", "args": {"index_ticker": "IMOEX", "as_of_date": "2024-12-01", "bottom_n": 5, "window_days": 30}, "depends_on": [], "description": "состав индекса и хвост", "required": true},'
+        '{"subagent": "risk_analytics", "tool": "compute_tail_metrics", "args": {}, "depends_on": ["market_data"], "description": "метрики хвоста", "required": true},'
+        '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "итоговый вывод", "required": true}'
+        ']}',
+    ]
+    TOOL_CATALOG: dict[str, list[dict[str, Any]]] = {
+        "market_data": [
+            {"tool": "get_security_snapshot", "required_args": ["ticker"], "optional_args": ["board"]},
+            {"tool": "get_ohlcv_timeseries", "required_args": ["ticker", "from_date", "to_date"], "optional_args": ["interval", "board"]},
+            {"tool": "get_index_constituents_metrics", "required_args": ["index_ticker"], "optional_args": ["as_of_date"]},
+            {"tool": "get_security_fundamentals", "required_args": ["ticker"], "optional_args": []},
+        ],
+        "risk_analytics": [
+            {"tool": "compute_portfolio_risk_basic", "required_args": ["positions"], "optional_args": ["from_date", "to_date", "rebalance"]},
+            {"tool": "compute_correlation_matrix", "required_args": ["tickers"], "optional_args": ["from_date", "to_date"]},
+            {"tool": "suggest_rebalance", "required_args": ["positions"], "optional_args": ["total_portfolio_value", "risk_profile"]},
+            {"tool": "cfo_liquidity_report", "required_args": ["positions"], "optional_args": ["from_date", "to_date", "total_portfolio_value", "horizon_months", "base_currency"]},
+            {"tool": "issuer_peers_compare", "required_args": ["ticker"], "optional_args": ["index_ticker", "sector", "peer_tickers", "max_peers", "as_of_date"]},
+            {"tool": "compute_tail_metrics", "required_args": ["ohlcv"], "optional_args": ["constituents"]},
+        ],
+        "dashboard": [
+            {"tool": "build_dashboard", "required_args": [], "optional_args": []},
+        ],
+        "knowledge": [
+            {"tool": "search_knowledge", "required_args": ["query"], "optional_args": ["limit"]},
+        ],
+        "explainer": [
+            {"tool": "generate_report", "required_args": [], "optional_args": []},
+        ],
+    }
 
     def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
         """
@@ -165,35 +224,50 @@ class ResearchPlannerSubagent(BaseSubagent):
 
     def _build_system_prompt(self) -> str:
         """Системный промпт с описанием возможностей сабагентов."""
+        catalog_lines = []
+        for agent, tools in self.TOOL_CATALOG.items():
+            catalog_lines.append(f"- {agent}:")
+            for tool in tools:
+                req = ", ".join(tool.get("required_args", [])) or "—"
+                opt = ", ".join(tool.get("optional_args", [])) or "—"
+                catalog_lines.append(f"  • {tool['tool']} (required: {req}; optional: {opt})")
+        catalog_text = "\n".join(catalog_lines)
+
         return (
             "Ты — ResearchPlannerSubagent в мультиагентной системе moex-market-analyst.\n"
-            "Твоя задача — составить до 5 шагов из доступных сабагентов, чтобы ответить на запрос.\n"
-            "Доступные сабагенты и их возможности:\n"
-            "- market_data: снимки котировок, OHLCV, состав индекса, фундаментальные данные.\n"
-            "- risk_analytics: базовый портфельный риск, матрица корреляций, ребалансировка, CFO-ликвидность, сравнение эмитента с пирами.\n"
-            "- dashboard: сбор метрик и формирование JSON-дашборда риска (RiskDashboardSpec).\n"
-            "- knowledge: запросы к базе знаний/новостям через RAG, выдаёт snippets и ссылки.\n"
-            "- explainer: формирует человекочитаемый текстовый ответ и рекомендации.\n\n"
+            "Задача: составить до 5 шагов из доступных сабагентов и MCP-тулов, чтобы ответить на запрос.\n"
+            "Доступные сабагенты/тулы:\n"
+            f"{catalog_text}\n\n"
             "Правила:\n"
             "1) Не делай циклов, максимум 5 шагов.\n"
-            "2) Если нужны данные или расчёты — добавь market_data и/или risk_analytics.\n"
+            "2) Указывай конкретный tool и аргументы, если нужны данные/расчёты.\n"
             "3) Для текстового ответа всегда добавляй explainer как финальный шаг.\n"
-            "4) Для пояснений/регламентов используй knowledge (опционально).\n"
-            "5) Строго выводи JSON без Markdown и комментариев.\n"
+            "4) Строго выводи JSON без Markdown/комментариев, только поля reasoning и steps.\n"
         )
 
     def _build_user_prompt(self, user_query: str) -> str:
         """Пользовательский промпт с запросом и требованиями к JSON."""
+        few_shots_text = "\n\n".join(self.FEW_SHOTS)
         return (
-            "Построй компактный план сабагентов, которые нужно вызвать, чтобы ответить на запрос.\n"
+            "Построй компактный план сабагентов/тулов, которые нужно вызвать, чтобы ответить на запрос.\n"
             "Строгий формат JSON:\n"
             '{\n'
             '  "reasoning": "<кратко почему такой план>",\n'
             '  "steps": [\n'
-            '    {"subagent": "market_data", "description": "что делает шаг", "required": true}\n'
+            '    {\n'
+            '      "subagent": "market_data",\n'
+            '      "tool": "get_index_constituents_metrics",\n'
+            '      "args": {"index_ticker": "IMOEX", "as_of_date": "2024-12-01"},\n'
+            '      "depends_on": [],\n'
+            '      "timeout_seconds": 30,\n'
+            '      "description": "получить состав индекса",\n'
+            '      "required": true\n'
+            '    }\n'
             "  ]\n"
             "}\n"
-            "Гарантируй парсибельный JSON без лишнего текста. Макс 5 шагов.\n\n"
+            "Гарантируй парсибельный JSON без лишнего текста. Макс 5 шагов.\n"
+            "Опирайся на примеры (не копируй дословно, соблюдай структуру):\n"
+            f"{few_shots_text}\n\n"
             f"Запрос пользователя: {user_query}"
         )
 
@@ -219,6 +293,11 @@ class ResearchPlannerSubagent(BaseSubagent):
 
             if normalized["subagent_name"] not in self.SUPPORTED_SUBAGENTS:
                 invalid_steps.append(normalized["subagent_name"])
+                continue
+
+            # Валидируем tool/args против каталога
+            if not self._validate_step_against_catalog(normalized):
+                invalid_steps.append(str(normalized))
                 continue
 
             try:
@@ -250,12 +329,53 @@ class ResearchPlannerSubagent(BaseSubagent):
             or ""
         )
 
+        args = raw_step.get("args") if isinstance(raw_step.get("args"), dict) else {}
+        depends_on = raw_step.get("depends_on") or raw_step.get("depends") or []
+        if not isinstance(depends_on, list):
+            depends_on = []
+
         return {
             "subagent": str(subagent_name).strip() if subagent_name else None,
             "subagent_name": str(subagent_name).strip() if subagent_name else None,
             "description": str(description).strip(),
             "required": bool(raw_step.get("required", True)),
+            "tool": raw_step.get("tool") or raw_step.get("tool_name"),
+            "tool_name": raw_step.get("tool") or raw_step.get("tool_name"),
+            "args": args,
+            "depends_on": depends_on,
+            "timeout_seconds": raw_step.get("timeout_seconds") or raw_step.get("timeout"),
         }
+
+    def _validate_step_against_catalog(self, step: dict[str, Any]) -> bool:
+        """
+        Проверить, что tool и аргументы соответствуют каталогу тулов сабагента.
+        """
+        subagent = step.get("subagent_name")
+        tool = step.get("tool") or step.get("tool_name")
+
+        # Без tool допускаем шаг, но он будет исполнен сабагентом по умолчанию
+        if not tool:
+            return True
+
+        catalog = self.TOOL_CATALOG.get(subagent, [])
+        matched = None
+        for item in catalog:
+            if item.get("tool") == tool:
+                matched = item
+                break
+
+        if matched is None:
+            logger.info("Planner step rejected: unknown tool %s for subagent %s", tool, subagent)
+            return False
+
+        required_args = matched.get("required_args") or []
+        args = step.get("args") or {}
+        missing = [arg for arg in required_args if arg not in args or args.get(arg) in (None, "")]
+        if missing:
+            logger.info("Planner step rejected: missing required args %s for tool %s", missing, tool)
+            return False
+
+        return True
 
     def _extract_json(self, raw_response: str) -> dict[str, Any]:
         """Извлечь JSON из ответа (учитывая возможные Markdown-кодовые блоки)."""
@@ -278,6 +398,10 @@ class ResearchPlannerSubagent(BaseSubagent):
                 "subagent": step.subagent_name,
                 "reason": step.description,
                 "required": step.required,
+                "tool": step.tool_name,
+                "args": step.args,
+                "depends_on": step.depends_on,
+                "timeout_seconds": step.timeout_seconds,
             }
             for step in plan.steps
         ]
@@ -330,6 +454,10 @@ class ResearchPlannerSubagent(BaseSubagent):
                     subagent="explainer",
                     description="Сформировать текстовый ответ",
                     required=True,
+                    tool="generate_report",
+                    args={},
+                    depends_on=[],
+                    timeout_seconds=None,
                 )
             )
 

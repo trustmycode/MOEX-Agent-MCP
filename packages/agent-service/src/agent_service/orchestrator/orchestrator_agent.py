@@ -55,6 +55,7 @@ class OrchestratorAgent:
         dynamic_planning_threshold: float = 0.55,
         planner_timeout_seconds: float = 20.0,
         max_dynamic_steps: int = 5,
+        plan_first_enabled: bool = False,
     ) -> None:
         """
         Инициализация оркестратора.
@@ -77,6 +78,7 @@ class OrchestratorAgent:
         self.dynamic_planning_threshold = dynamic_planning_threshold
         self.planner_timeout_seconds = planner_timeout_seconds
         self.max_dynamic_steps = max_dynamic_steps
+        self.plan_first_enabled = plan_first_enabled
 
     async def handle_request(self, a2a_input: A2AInput) -> A2AOutput:
         """
@@ -102,6 +104,8 @@ class OrchestratorAgent:
         planner_reasoning: Optional[str] = None
         raw_planner_response: Optional[str] = None
         planned_pipeline_steps: list[str] = []
+        planned_steps_payload: list[dict[str, Any]] = []
+        planner_attempted = False
 
         try:
             # Шаг 1: Извлечение запроса
@@ -166,7 +170,9 @@ class OrchestratorAgent:
 
             if scenario_type in (ScenarioType.PORTFOLIO_RISK, ScenarioType.CFO_LIQUIDITY):
                 if not parsed_params.get("positions"):
-                    parse_result = self.query_parser.parse_portfolio(user_query, allow_llm=True)
+                    parse_result = await self.query_parser.parse_portfolio(
+                        user_query, allow_llm=True
+                    )
                     if parse_result.positions:
                         parsed_params["positions"] = parse_result.positions
                 if not parsed_params.get("positions"):
@@ -195,9 +201,10 @@ class OrchestratorAgent:
 
             # Шаг 4: выбор статики или динамического плана
             pipeline: Optional[ScenarioPipeline] = None
-            need_dynamic = scenario_type == ScenarioType.UNKNOWN or confidence < self.dynamic_planning_threshold
 
-            if need_dynamic:
+            # 4a: Планировщик как основной путь (если включён)
+            if self.plan_first_enabled:
+                planner_attempted = True
                 dynamic_plan = await self._plan_with_research_planner(
                     context=context,
                     subagent_traces=subagent_traces,
@@ -206,9 +213,37 @@ class OrchestratorAgent:
                     pipeline = dynamic_plan["pipeline"]
                     planner_reasoning = dynamic_plan.get("reasoning")
                     raw_planner_response = dynamic_plan.get("raw_response")
+                    planned_steps_payload = dynamic_plan.get("steps") or []
                     plan_source = "dynamic"
                     planned_pipeline_steps = pipeline.subagent_names
                     context.scenario_type = "dynamic_plan"
+                    if planned_steps_payload:
+                        context.set_metadata("planned_steps", planned_steps_payload)
+                else:
+                    logger.warning("Plan-first включён, но планировщик не вернул план — fallback на статическую логику")
+
+            # 4b: Статика/динамика по порогу, если планировщик не сработал
+            need_dynamic = (
+                pipeline is None
+                and (scenario_type == ScenarioType.UNKNOWN or confidence < self.dynamic_planning_threshold)
+            )
+
+            if need_dynamic and not planner_attempted:
+                dynamic_plan = await self._plan_with_research_planner(
+                    context=context,
+                    subagent_traces=subagent_traces,
+                )
+                planner_attempted = True
+                if dynamic_plan:
+                    pipeline = dynamic_plan["pipeline"]
+                    planner_reasoning = dynamic_plan.get("reasoning")
+                    raw_planner_response = dynamic_plan.get("raw_response")
+                    planned_steps_payload = dynamic_plan.get("steps") or []
+                    plan_source = "dynamic"
+                    planned_pipeline_steps = pipeline.subagent_names
+                    context.scenario_type = "dynamic_plan"
+                    if planned_steps_payload:
+                        context.set_metadata("planned_steps", planned_steps_payload)
 
             if pipeline is None and scenario_type != ScenarioType.UNKNOWN:
                 pipeline = get_pipeline(scenario_type)
@@ -306,8 +341,8 @@ class OrchestratorAgent:
                 subagent_traces.append(trace)
                 return None
 
-            pipeline = self._build_dynamic_pipeline(planner_result.data, context)
-            if pipeline is None:
+            dynamic_plan = self._build_dynamic_pipeline(planner_result.data, context)
+            if dynamic_plan is None:
                 trace.status = "error"
                 trace.error = "Invalid or empty plan"
                 subagent_traces.append(trace)
@@ -318,7 +353,8 @@ class OrchestratorAgent:
 
             plan_block = planner_result.data.get("plan") or planner_result.data
             return {
-                "pipeline": pipeline,
+                "pipeline": dynamic_plan["pipeline"],
+                "steps": dynamic_plan.get("steps", []),
                 "reasoning": plan_block.get("reasoning"),
                 "raw_response": planner_result.data.get("raw_llm_response"),
             }
@@ -342,7 +378,7 @@ class OrchestratorAgent:
         self,
         planner_payload: dict[str, Any],
         context: AgentContext,
-    ) -> Optional[ScenarioPipeline]:
+    ) -> Optional[dict[str, Any]]:
         """
         Сконструировать ScenarioPipeline из результата ResearchPlanner.
         """
@@ -352,6 +388,7 @@ class OrchestratorAgent:
         steps: list[PipelineStep] = []
         seen: set[str] = set()
         missing_required: list[str] = []
+        planned_steps_payload: list[dict[str, Any]] = []
 
         for raw in raw_steps:
             subagent = raw.get("subagent") or raw.get("subagent_name")
@@ -363,6 +400,12 @@ class OrchestratorAgent:
                 continue
 
             required = bool(raw.get("required", True))
+            timeout = raw.get("timeout_seconds") or raw.get("timeout") or self.default_timeout
+            depends_on = raw.get("depends_on") or raw.get("depends") or []
+            if not isinstance(depends_on, list):
+                depends_on = []
+            tool = raw.get("tool") or raw.get("tool_name")
+            args = raw.get("args") if isinstance(raw.get("args"), dict) else {}
 
             if subagent not in self.registry:
                 if required:
@@ -373,8 +416,19 @@ class OrchestratorAgent:
                 PipelineStep(
                     subagent_name=subagent,
                     required=required,
-                    timeout_seconds=self.default_timeout,
+                    timeout_seconds=float(timeout) if timeout else self.default_timeout,
+                    depends_on=depends_on,
                 )
+            )
+            planned_steps_payload.append(
+                {
+                    "subagent": subagent,
+                    "required": required,
+                    "depends_on": depends_on,
+                    "timeout_seconds": timeout,
+                    "tool": tool,
+                    "args": args,
+                }
             )
             seen.add(subagent)
 
@@ -390,12 +444,15 @@ class OrchestratorAgent:
         if not steps:
             return None
 
-        return ScenarioPipeline(
-            scenario_type=ScenarioType.UNKNOWN,
-            description="Динамический план ResearchPlanner",
-            steps=steps,
-            default_timeout=self.default_timeout,
-        )
+        return {
+            "pipeline": ScenarioPipeline(
+                scenario_type=ScenarioType.UNKNOWN,
+                description="Динамический план ResearchPlanner",
+                steps=steps,
+                default_timeout=self.default_timeout,
+            ),
+            "steps": planned_steps_payload,
+        }
 
     async def _execute_pipeline(
         self,

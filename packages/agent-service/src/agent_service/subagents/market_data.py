@@ -114,6 +114,13 @@ class MarketDataSubagent(BaseSubagent):
         if validation_error:
             return SubagentResult.create_error(error=validation_error)
 
+        # Плановый шаг от LLM-планировщика (plan-first)
+        planned_step = self._pick_planned_step(context.get_metadata("planned_steps", []))
+        if planned_step:
+            planned_result = await self._execute_planned_step(planned_step)
+            if planned_result:
+                return planned_result
+
         # Определяем, какие данные нужны, из context
         scenario_type = context.scenario_type
 
@@ -428,6 +435,203 @@ class MarketDataSubagent(BaseSubagent):
             context.scenario_type = "compare_securities"
             context.add_result("parsed_params", {"tickers": tickers})
             return await self._handle_compare_securities(context)
+
+    # ------------------------------------------------------------------ #
+    # Плановый режим (plan-first)
+    # ------------------------------------------------------------------ #
+    def _pick_planned_step(self, planned_steps: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """Выбрать шаг плана для данного сабагента."""
+        if not planned_steps:
+            return None
+        for step in planned_steps:
+            if isinstance(step, dict) and step.get("subagent") == self.SUBAGENT_NAME:
+                return step
+        return None
+
+    async def _fetch_index_tail_ohlcv(
+        self,
+        index_data: Any,
+        bottom_n: int,
+        window_days: int,
+    ) -> dict[str, Any]:
+        """
+        Выбрать bottom-N по весу и получить их OHLCV за окно дней.
+        """
+        constituents = []
+        if isinstance(index_data, dict):
+            # ожидаем payload вида {"data": [...]}
+            constituents = index_data.get("data") or index_data.get("constituents") or []
+        elif isinstance(index_data, list):
+            constituents = index_data
+
+        if not constituents:
+            return {"data": {}, "error": "Нет данных о составе индекса"}
+
+        try:
+            bottom_n_val = max(1, int(bottom_n))
+        except Exception:
+            bottom_n_val = 5
+
+        sorted_constituents = sorted(
+            constituents,
+            key=lambda x: x.get("weight_pct", 0) if isinstance(x, dict) else 0,
+        )
+        tail = sorted_constituents[:bottom_n_val]
+        tail_tickers = [c.get("ticker") for c in tail if isinstance(c, dict) and c.get("ticker")]
+
+        if not tail_tickers:
+            return {"data": {}, "error": "Не удалось определить тикеры хвоста индекса"}
+
+        from datetime import date, timedelta
+
+        to_date = self._default_to_date()
+        try:
+            from_date = (date.today() - timedelta(days=int(window_days))).isoformat()
+        except Exception:
+            from_date = (date.today() - timedelta(days=30)).isoformat()
+
+        ohlcv_data: dict[str, Any] = {}
+        errors: list[str] = []
+
+        for ticker in tail_tickers:
+            result = await self.get_ohlcv_timeseries(
+                ticker=ticker,
+                from_date=from_date,
+                to_date=to_date,
+            )
+            if result.success:
+                ohlcv_data[ticker] = result.data
+            else:
+                errors.append(f"{ticker}: {result.error.message if result.error else 'ohlcv error'}")
+
+        data_block = {
+            "tail_constituents": tail,
+            "tail_tickers": tail_tickers,
+            "tail_ohlcv": ohlcv_data,
+            "from_date": from_date,
+            "to_date": to_date,
+        }
+
+        return {
+            "data": data_block,
+            "error": "; ".join(errors) if errors else None,
+        }
+
+    async def _execute_planned_step(self, step: dict[str, Any]) -> Optional[SubagentResult]:
+        """
+        Выполнить шаг, явно указанный планировщиком.
+
+        Поддерживаем ограниченный набор tool'ов; при неизвестном tool возвращаем ошибку.
+        """
+        tool = (step.get("tool") or "").strip()
+        args = step.get("args") if isinstance(step.get("args"), dict) else {}
+
+        try:
+            if tool == self.TOOL_INDEX:
+                index_ticker = (args.get("index_ticker") or "IMOEX").upper()
+                as_of_date = args.get("as_of_date") or self._default_to_date()
+                bottom_n = args.get("bottom_n")
+                window_days = args.get("window_days") or 30
+
+                index_result = await self.get_index_constituents_metrics(
+                    index_ticker=index_ticker,
+                    as_of_date=as_of_date,
+                )
+                if not index_result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка получения состава индекса {index_ticker}: "
+                        f"{index_result.error.message if index_result.error else 'Unknown'}",
+                    )
+                data = {
+                    "index_ticker": index_ticker,
+                    "as_of_date": as_of_date,
+                    "index_data": index_result.data,
+                }
+
+                # Если запрошен хвост по весу — выбираем bottom_n и тянем OHLCV за окно
+                if bottom_n:
+                    tail_block = await self._fetch_index_tail_ohlcv(
+                        index_result.data,
+                        bottom_n=bottom_n,
+                        window_days=window_days,
+                    )
+                    data.update(tail_block["data"])
+                    if tail_block.get("error"):
+                        return SubagentResult.partial(
+                            data=data,
+                            error=tail_block["error"],
+                            next_agent_hint="risk_analytics",
+                        )
+                return SubagentResult.success(
+                    data=data,
+                    next_agent_hint="risk_analytics",
+                )
+
+            if tool == self.TOOL_OHLCV:
+                ticker = (args.get("ticker") or "").upper()
+                if not ticker:
+                    return SubagentResult.create_error(error="План требует ticker для get_ohlcv_timeseries")
+                from_date = args.get("from_date") or self._default_from_date()
+                to_date = args.get("to_date") or self._default_to_date()
+                board = args.get("board") or DEFAULT_BOARD
+                interval = args.get("interval") or "1d"
+                ohlcv_result = await self.get_ohlcv_timeseries(
+                    ticker=ticker,
+                    from_date=from_date,
+                    to_date=to_date,
+                    board=board,
+                    interval=interval,
+                )
+                if not ohlcv_result.success:
+                    return SubagentResult.create_error(
+                        error=f"{ticker}: {ohlcv_result.error.message if ohlcv_result.error else 'ohlcv error'}"
+                    )
+                return SubagentResult.success(
+                    data={
+                        "tickers": [ticker],
+                        "ohlcv": {ticker: ohlcv_result.data},
+                        "from_date": from_date,
+                        "to_date": to_date,
+                    },
+                    next_agent_hint="risk_analytics",
+                )
+
+            if tool == self.TOOL_SNAPSHOT:
+                ticker = (args.get("ticker") or "").upper()
+                if not ticker:
+                    return SubagentResult.create_error(error="План требует ticker для get_security_snapshot")
+                board = args.get("board") or DEFAULT_BOARD
+                snapshot_result = await self.get_security_snapshot(ticker=ticker, board=board)
+                if not snapshot_result.success:
+                    return SubagentResult.create_error(
+                        error=f"{ticker}: {snapshot_result.error.message if snapshot_result.error else 'snapshot error'}"
+                    )
+                return SubagentResult.success(
+                    data={ticker: {"snapshot": self._normalize_snapshot(snapshot_result.data)}},
+                    next_agent_hint="risk_analytics",
+                )
+
+            if tool == self.TOOL_FUNDAMENTALS:
+                ticker = (args.get("ticker") or "").upper()
+                if not ticker:
+                    return SubagentResult.create_error(error="План требует ticker для get_security_fundamentals")
+                fundamentals_result = await self.get_security_fundamentals(ticker=ticker)
+                if not fundamentals_result.success:
+                    return SubagentResult.create_error(
+                        error=f"{ticker}: {fundamentals_result.error.message if fundamentals_result.error else 'fundamentals error'}"
+                    )
+                return SubagentResult.success(
+                    data={ticker: {"fundamentals": fundamentals_result.data}},
+                    next_agent_hint="explainer",
+                )
+
+            if tool:
+                return SubagentResult.create_error(error=f"Неизвестный tool для market_data: {tool}")
+        except Exception as exc:  # pragma: no cover - защита от неожиданных ошибок
+            logger.exception("MarketData planned step failed: %s", exc)
+            return SubagentResult.create_error(error=f"Ошибка выполнения планового шага: {type(exc).__name__}: {exc}")
+
+        return None
 
     # --- MCP Tool Wrappers ---
 

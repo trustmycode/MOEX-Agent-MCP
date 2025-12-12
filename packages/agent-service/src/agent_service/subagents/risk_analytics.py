@@ -53,6 +53,7 @@ class RiskAnalyticsSubagent(BaseSubagent):
     TOOL_REBALANCE = "suggest_rebalance"
     TOOL_CFO_LIQUIDITY = "cfo_liquidity_report"
     TOOL_ISSUER_PEERS = "issuer_peers_compare"
+    TOOL_TAIL_METRICS = "compute_tail_metrics"
 
     def __init__(
         self,
@@ -110,6 +111,13 @@ class RiskAnalyticsSubagent(BaseSubagent):
         validation_error = self.validate_context(context)
         if validation_error:
             return SubagentResult.create_error(error=validation_error)
+
+        # Плановый шаг от LLM-планировщика (plan-first)
+        planned_step = self._pick_planned_step(context.get_metadata("planned_steps", []))
+        if planned_step:
+            planned_result = await self._execute_planned_step(planned_step)
+            if planned_result:
+                return planned_result
 
         scenario_type = context.scenario_type
 
@@ -498,6 +506,283 @@ class RiskAnalyticsSubagent(BaseSubagent):
             next_agent_hint="dashboard",
         )
 
+    # ------------------------------------------------------------------ #
+    # Плановый режим (plan-first)
+    # ------------------------------------------------------------------ #
+    def _pick_planned_step(self, planned_steps: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """Выбрать шаг плана для данного сабагента."""
+        if not planned_steps:
+            return None
+        for step in planned_steps:
+            if isinstance(step, dict) and step.get("subagent") == self.SUBAGENT_NAME:
+                return step
+        return None
+
+    async def _execute_planned_step(self, step: dict[str, Any]) -> Optional[SubagentResult]:
+        """
+        Выполнить шаг, явно указанный планировщиком.
+        """
+        tool = (step.get("tool") or "").strip()
+        args = step.get("args") if isinstance(step.get("args"), dict) else {}
+
+        try:
+            if tool == self.TOOL_CORRELATION:
+                tickers = args.get("tickers") or []
+                if not tickers or len(tickers) < 2:
+                    return SubagentResult.create_error(error="План требует минимум 2 тикера для compute_correlation_matrix")
+                from_date = args.get("from_date") or self._default_from_date()
+                to_date = args.get("to_date") or self._default_to_date()
+                result = await self.compute_correlation_matrix(
+                    tickers=tickers,
+                    from_date=from_date,
+                    to_date=to_date,
+                )
+                if not result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка расчёта корреляций: {result.error.message if result.error else 'Unknown'}"
+                    )
+                return SubagentResult.success(
+                    data={"correlation_matrix": result.data, "tickers": tickers},
+                    next_agent_hint="dashboard",
+                )
+
+            if tool == self.TOOL_PORTFOLIO_RISK:
+                positions = args.get("positions") or []
+                if not positions:
+                    return SubagentResult.create_error(error="План требует positions для compute_portfolio_risk_basic")
+                from_date = args.get("from_date") or self._default_from_date()
+                to_date = args.get("to_date") or self._default_to_date()
+                rebalance = args.get("rebalance") or DEFAULT_REBALANCE
+                result = await self.compute_portfolio_risk_basic(
+                    positions=positions,
+                    from_date=from_date,
+                    to_date=to_date,
+                    rebalance=rebalance,
+                )
+                if not result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка расчёта портфельного риска: {result.error.message if result.error else 'Unknown'}"
+                    )
+                return SubagentResult.success(
+                    data={"portfolio_risk": result.data, "from_date": from_date, "to_date": to_date},
+                    next_agent_hint="dashboard",
+                )
+
+            if tool == self.TOOL_REBALANCE:
+                positions = args.get("positions") or []
+                if not positions:
+                    return SubagentResult.create_error(error="План требует positions для suggest_rebalance")
+                total_value = args.get("total_portfolio_value")
+                risk_profile = args.get("risk_profile")
+                result = await self.suggest_rebalance(
+                    positions=positions,
+                    total_portfolio_value=total_value,
+                    risk_profile=risk_profile,
+                )
+                if not result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка ребалансировки: {result.error.message if result.error else 'Unknown'}"
+                    )
+                return SubagentResult.success(
+                    data={"rebalance_proposal": result.data},
+                    next_agent_hint="explainer",
+                )
+
+            if tool == self.TOOL_CFO_LIQUIDITY:
+                positions = args.get("positions") or []
+                if not positions:
+                    return SubagentResult.create_error(error="План требует positions для cfo_liquidity_report")
+                from_date = args.get("from_date") or self._default_from_date()
+                to_date = args.get("to_date") or self._default_to_date()
+                total_value = args.get("total_portfolio_value")
+                base_currency = args.get("base_currency") or "RUB"
+                horizon_months = args.get("horizon_months") or 12
+                stress_scenarios = args.get("stress_scenarios")
+                aggregates = args.get("aggregates")
+                covenant_limits = args.get("covenant_limits")
+                result = await self.cfo_liquidity_report(
+                    positions=positions,
+                    from_date=from_date,
+                    to_date=to_date,
+                    total_portfolio_value=total_value,
+                    base_currency=base_currency,
+                    horizon_months=horizon_months,
+                    stress_scenarios=stress_scenarios,
+                    aggregates=aggregates,
+                    covenant_limits=covenant_limits,
+                )
+                if not result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка CFO-отчёта: {result.error.message if result.error else 'Unknown'}"
+                    )
+                return SubagentResult.success(
+                    data={"cfo_report": result.data},
+                    next_agent_hint="dashboard",
+                )
+
+            if tool == self.TOOL_ISSUER_PEERS:
+                ticker = args.get("ticker")
+                isin = args.get("isin")
+                issuer_id = args.get("issuer_id")
+                if not ticker and not isin and not issuer_id:
+                    return SubagentResult.create_error(
+                        error="План требует ticker/isin/issuer_id для issuer_peers_compare"
+                    )
+                index_ticker = args.get("index_ticker", "IMOEX")
+                sector = args.get("sector")
+                peer_tickers = args.get("peer_tickers")
+                max_peers = args.get("max_peers", 10)
+                as_of_date = args.get("as_of_date")
+                result = await self.issuer_peers_compare(
+                    ticker=ticker,
+                    isin=isin,
+                    issuer_id=issuer_id,
+                    index_ticker=index_ticker,
+                    sector=sector,
+                    peer_tickers=peer_tickers,
+                    max_peers=max_peers,
+                    as_of_date=as_of_date,
+                )
+                if not result.success:
+                    return SubagentResult.create_error(
+                        error=f"Ошибка сравнения с пирами: {result.error.message if result.error else 'Unknown'}"
+                    )
+                return SubagentResult.success(
+                    data={"peers_report": result.data},
+                    next_agent_hint="dashboard",
+                )
+
+            if tool == self.TOOL_TAIL_METRICS:
+                return await self._compute_tail_metrics_planned(args, context)
+
+            if tool:
+                return SubagentResult.create_error(error=f"Неизвестный tool для risk_analytics: {tool}")
+        except Exception as exc:  # pragma: no cover - защита от неожиданных ошибок
+            logger.exception("RiskAnalytics planned step failed: %s", exc)
+            return SubagentResult.create_error(error=f"Ошибка выполнения планового шага: {type(exc).__name__}: {exc}")
+
+        return None
+
+    async def _compute_tail_metrics_planned(self, args: dict[str, Any], context: AgentContext) -> SubagentResult:
+        """
+        Посчитать метрики хвоста индекса через MCP; при недоступности MCP — fallback на локальный расчёт.
+        """
+        market_data = context.get_result("market_data", {})
+        ohlcv = args.get("ohlcv") or market_data.get("tail_ohlcv")
+        constituents = args.get("constituents") or market_data.get("tail_constituents") or []
+
+        if not ohlcv:
+            return SubagentResult.create_error(error="Нет OHLCV для хвоста индекса")
+
+        # Попытка через MCP
+        try:
+            mcp_args = {"ohlcv": ohlcv, "constituents": constituents}
+            result = await self.compute_tail_metrics(mcp_args)  # type: ignore[attr-defined]
+            if result.success:
+                data = result.data or {}
+                return SubagentResult.success(data=data, next_agent_hint="explainer")
+            if result.error:
+                return SubagentResult.create_error(error=result.error.message if result.error else "Ошибка compute_tail_metrics")
+        except Exception:
+            logger.warning("compute_tail_metrics MCP недоступен, используем локальный fallback", exc_info=True)
+
+        # Fallback на локальную математику
+        fallback = self._compute_tail_metrics_local(ohlcv, constituents)
+        if fallback["errors"]:
+            return SubagentResult.partial(
+                data=fallback["data"],
+                error="; ".join(fallback["errors"]),
+                next_agent_hint="explainer",
+            )
+        return SubagentResult.success(data=fallback["data"], next_agent_hint="explainer")
+
+    def _compute_tail_metrics_local(self, ohlcv: dict[str, Any], constituents: list[Any]) -> dict[str, Any]:
+        weight_map: dict[str, Optional[float]] = {}
+        if constituents and isinstance(constituents, list):
+            for c in constituents:
+                if isinstance(c, dict) and c.get("ticker") is not None:
+                    weight_pct = c.get("weight_pct")
+                    weight_map[c.get("ticker")] = weight_pct
+
+        per_instrument: list[dict[str, Any]] = []
+        errors: list[str] = []
+
+        for ticker, series in ohlcv.items():
+            try:
+                metrics = self._compute_basic_metrics_from_ohlcv_local(series)
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"{ticker}: {type(exc).__name__}")
+                continue
+
+            weight_pct = weight_map.get(ticker)
+            weight_fraction = (float(weight_pct) / 100.0) if weight_pct is not None else None
+
+            per_instrument.append(
+                {
+                    "ticker": ticker,
+                    "weight": weight_fraction,
+                    "total_return_pct": metrics.get("return_pct"),
+                    "annualized_volatility_pct": metrics.get("ann_vol_pct"),
+                    "max_drawdown_pct": metrics.get("max_dd_pct"),
+                }
+            )
+
+        data = {"per_instrument": per_instrument, "scenario": "index_tail_analysis"}
+        return {"data": data, "errors": errors}
+
+    def _compute_basic_metrics_from_ohlcv_local(self, series: Any) -> dict[str, float]:
+        """
+        Рассчитать месячную доходность, годовую волатильность и max drawdown из OHLCV (fallback).
+        """
+        if not series or not isinstance(series, list):
+            raise ValueError("Пустая серия OHLCV")
+
+        closes: list[float] = []
+        for bar in series:
+            if isinstance(bar, dict):
+                close_val = bar.get("close") or bar.get("Close") or bar.get("CLOSE")
+                if close_val is not None:
+                    try:
+                        closes.append(float(close_val))
+                    except Exception:
+                        continue
+
+        if len(closes) < 2:
+            raise ValueError("Недостаточно точек OHLCV")
+
+        first, last = closes[0], closes[-1]
+        return_pct = (last / first - 1.0) * 100 if first else 0.0
+
+        returns = []
+        for i in range(1, len(closes)):
+            prev = closes[i - 1]
+            curr = closes[i]
+            if prev:
+                returns.append((curr / prev - 1.0))
+        if returns:
+            mean = sum(returns) / len(returns)
+            var = sum((r - mean) ** 2 for r in returns) / len(returns)
+            import math
+
+            ann_vol_pct = (var ** 0.5) * (math.sqrt(252)) * 100
+        else:
+            ann_vol_pct = 0.0
+
+        peak = closes[0]
+        max_dd = 0.0
+        for price in closes:
+            if price > peak:
+                peak = price
+            dd = (price / peak - 1.0) * 100
+            if dd < max_dd:
+                max_dd = dd
+
+        return {
+            "return_pct": return_pct,
+            "ann_vol_pct": ann_vol_pct,
+            "max_dd_pct": max_dd,
+        }
+
     # --- MCP Tool Wrappers ---
 
     async def compute_portfolio_risk_basic(
@@ -553,6 +838,18 @@ class RiskAnalyticsSubagent(BaseSubagent):
                 "from_date": from_date,
                 "to_date": to_date,
             },
+        )
+
+    async def compute_tail_metrics(
+        self,
+        payload: dict[str, Any],
+    ) -> ToolCallResult:
+        """
+        Расчёт метрик хвоста индекса по OHLCV (через MCP).
+        """
+        return await self._mcp_client.call_tool(
+            tool_name=self.TOOL_TAIL_METRICS,
+            args=payload,
         )
 
     async def suggest_rebalance(
