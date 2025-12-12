@@ -115,7 +115,7 @@ class RiskAnalyticsSubagent(BaseSubagent):
         # Плановый шаг от LLM-планировщика (plan-first)
         planned_step = self._pick_planned_step(context.get_metadata("planned_steps", []))
         if planned_step:
-            planned_result = await self._execute_planned_step(planned_step)
+            planned_result = await self._execute_planned_step(planned_step, context)
             if planned_result:
                 return planned_result
 
@@ -518,7 +518,9 @@ class RiskAnalyticsSubagent(BaseSubagent):
                 return step
         return None
 
-    async def _execute_planned_step(self, step: dict[str, Any]) -> Optional[SubagentResult]:
+    async def _execute_planned_step(
+        self, step: dict[str, Any], context: AgentContext
+    ) -> Optional[SubagentResult]:
         """
         Выполнить шаг, явно указанный планировщиком.
         """
@@ -680,11 +682,13 @@ class RiskAnalyticsSubagent(BaseSubagent):
             if result.success:
                 data = result.data or {}
                 return SubagentResult.success(data=data, next_agent_hint="explainer")
-            if result.error:
-                return SubagentResult.create_error(error=result.error.message if result.error else "Ошибка compute_tail_metrics")
+            error_msg = result.error.message if result.error else "Ошибка compute_tail_metrics"
+            return SubagentResult.create_error(error=error_msg)
         except Exception as exc:  # pragma: no cover - защита
             logger.exception("compute_tail_metrics MCP failed: %s", exc)
-            return SubagentResult.create_error(error=f"Ошибка compute_tail_metrics: {type(exc).__name__}: {exc}")
+            return SubagentResult.create_error(
+                error=f"Ошибка compute_tail_metrics: {type(exc).__name__}: {exc}"
+            )
 
     # --- MCP Tool Wrappers ---
 

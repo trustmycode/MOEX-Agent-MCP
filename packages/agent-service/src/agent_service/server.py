@@ -94,12 +94,14 @@ def _build_orchestrator() -> OrchestratorAgent:
     default_timeout = float(os.getenv("AGENT_STEP_TIMEOUT_SECONDS", "30"))
     enable_debug = os.getenv("AGENT_ENABLE_DEBUG", "true").lower() in {"1", "true", "yes", "y"}
     plan_first_enabled = os.getenv("AGENT_PLAN_FIRST", "true").lower() in {"1", "true", "yes", "y"}
+    planner_timeout = float(os.getenv("AGENT_PLANNER_TIMEOUT_SECONDS", "40"))
     registry = _build_registry()
     return OrchestratorAgent(
         registry=registry,
         default_timeout=default_timeout,
         enable_debug=enable_debug,
         plan_first_enabled=plan_first_enabled,
+        planner_timeout_seconds=planner_timeout,
     )
 
 

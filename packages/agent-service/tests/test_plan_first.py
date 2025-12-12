@@ -9,6 +9,7 @@ from agent_service.core.context import AgentContext
 from agent_service.core.result import SubagentResult
 from agent_service.orchestrator.models import A2AInput
 from agent_service.orchestrator.orchestrator_agent import OrchestratorAgent
+from agent_service.mcp.types import ToolCallResult
 
 
 class StubSubagent(BaseSubagent):
@@ -61,6 +62,45 @@ async def test_build_dynamic_pipeline_includes_tools() -> None:
     assert dynamic_plan is not None
     assert [s.subagent_name for s in dynamic_plan["pipeline"].steps] == ["market_data", "explainer"]
     assert dynamic_plan["steps"][0]["tool"] == "get_index_constituents_metrics"
+
+
+@pytest.mark.asyncio
+async def test_dynamic_pipeline_injects_dashboard_for_portfolio_risk() -> None:
+    registry = SubagentRegistry()
+    registry.register(StubSubagent("market_data", capabilities=["get_security_snapshot"]))
+    registry.register(StubSubagent("risk_analytics", capabilities=["compute_portfolio_risk_basic"]))
+    registry.register(StubSubagent("dashboard", capabilities=["build_dashboard"]))
+    registry.register(StubSubagent("explainer", {"text": "ok"}))
+
+    orchestrator = OrchestratorAgent(registry=registry, plan_first_enabled=True)
+    context = AgentContext(user_query="test", scenario_type="portfolio_risk")
+
+    planner_payload = {
+        "plan": {
+            "reasoning": "r",
+            "steps": [
+                {
+                    "subagent": "market_data",
+                    "tool": "get_security_snapshot",
+                    "args": {"ticker": "SBER"},
+                    "required": True,
+                },
+                {
+                    "subagent": "risk_analytics",
+                    "tool": "compute_portfolio_risk_basic",
+                    "args": {"positions": [{"ticker": "SBER", "weight": 1.0}]},
+                    "depends_on": ["market_data"],
+                    "required": True,
+                },
+            ],
+        }
+    }
+
+    dynamic_plan = orchestrator._build_dynamic_pipeline(planner_payload, context)  # type: ignore[prop-access]
+    assert dynamic_plan is not None
+    names = [s.subagent_name for s in dynamic_plan["pipeline"].steps]
+    assert "dashboard" in names
+    assert names.index("dashboard") > names.index("risk_analytics")
 
 
 @pytest.mark.asyncio
@@ -139,16 +179,20 @@ class StubRiskAnalytics(StubSubagent):
     def __init__(self) -> None:
         super().__init__("risk_analytics")
 
-    # Reuse logic from real subagent for compute_tail_metrics_planned
+    async def compute_tail_metrics(self, payload: dict[str, Any]) -> Any:
+        return ToolCallResult.success_result(
+            tool_name="compute_tail_metrics",
+            data={
+                "per_instrument": [
+                    {"ticker": "AAA", "weight": 0.6, "total_return_pct": 5.0, "annualized_volatility_pct": 10.0, "max_drawdown_pct": -3.0},
+                    {"ticker": "BBB", "weight": 0.4, "total_return_pct": 3.0, "annualized_volatility_pct": 12.0, "max_drawdown_pct": -4.0},
+                ],
+                "scenario": "index_tail_analysis",
+            },
+        )
+
+    # Reuse logic from real subagent only for planned step execution
     from agent_service.subagents.risk_analytics import RiskAnalyticsSubagent
 
-    async def compute_tail_metrics(self, payload: dict[str, Any]) -> Any:
-        # Провоцируем fallback на локальный расчёт в _compute_tail_metrics_planned
-        raise RuntimeError("compute_tail_metrics MCP недоступен (stub)")
-
     _compute_tail_metrics_planned = RiskAnalyticsSubagent._compute_tail_metrics_planned  # type: ignore
-    _compute_tail_metrics_local = RiskAnalyticsSubagent._compute_tail_metrics_local  # type: ignore
-    _compute_basic_metrics_from_ohlcv_local = (
-        RiskAnalyticsSubagent._compute_basic_metrics_from_ohlcv_local  # type: ignore
-    )
 

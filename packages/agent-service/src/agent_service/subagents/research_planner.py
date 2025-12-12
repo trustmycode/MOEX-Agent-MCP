@@ -36,6 +36,7 @@ class LLMClient(Protocol):
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 800,
+        **kwargs: Any,
     ) -> str:
         ...
 
@@ -53,6 +54,7 @@ class MockPlannerLLMClient:
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 800,
+        **kwargs: Any,
     ) -> str:
         """Возвращает детерминированный минимальный план."""
         fallback_plan = {
@@ -104,6 +106,14 @@ class ResearchPlannerSubagent(BaseSubagent):
     SUBAGENT_NAME = "research_planner"
     SUPPORTED_SUBAGENTS = {"market_data", "risk_analytics", "dashboard", "explainer", "knowledge"}
     MAX_STEPS = 5
+    DASHBOARD_SCENARIOS = {
+        "portfolio_risk",
+        "cfo_liquidity",
+        "issuer_compare",
+        "securities_compare",
+        "index_scan",
+    }
+    DEFAULT_DASHBOARD_TIMEOUT = 15.0
     FEW_SHOTS: list[str] = [
         # Анализ индекса
         '{"reasoning": "Анализ индекса: берём состав и отвечаем текстом", "steps": ['
@@ -117,10 +127,8 @@ class ResearchPlannerSubagent(BaseSubagent):
         '{"subagent": "dashboard", "tool": "build_dashboard", "args": {}, "depends_on": ["risk_analytics"], "description": "собрать дашборд", "required": false},'
         '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "итоговый текст", "required": true}'
         ']}',
-        # Один тикер
-        '{"reasoning": "Один тикер: берём snapshot и историю, потом объясняем", "steps": ['
+        '{"reasoning": "Один тикер: берём snapshot и объясняем", "steps": ['
         '{"subagent": "market_data", "tool": "get_security_snapshot", "args": {"ticker": "SBER", "board": "TQBR"}, "depends_on": [], "description": "snapshot тикера", "required": true},'
-        '{"subagent": "market_data", "tool": "get_ohlcv_timeseries", "args": {"ticker": "SBER", "from_date": "2024-11-01", "to_date": "2024-12-01", "interval": "1d"}, "depends_on": ["market_data"], "description": "история цен", "required": false},'
         '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["market_data"], "description": "итоговый текст", "required": true}'
         ']}',
         # Сравнение тикеров
@@ -131,7 +139,7 @@ class ResearchPlannerSubagent(BaseSubagent):
         # Индекс: хвост по весу
         '{"reasoning": "Индекс: взять хвост по весу, получить цены за месяц и объяснить", "steps": ['
         '{"subagent": "market_data", "tool": "get_index_constituents_metrics", "args": {"index_ticker": "IMOEX", "as_of_date": "2024-12-01", "bottom_n": 5, "window_days": 30}, "depends_on": [], "description": "состав индекса и хвост", "required": true},'
-        '{"subagent": "risk_analytics", "tool": "compute_tail_metrics", "args": {}, "depends_on": ["market_data"], "description": "метрики хвоста", "required": true},'
+        '{"subagent": "risk_analytics", "tool": "compute_tail_metrics", "args": {"ohlcv": []}, "depends_on": ["market_data"], "description": "метрики хвоста", "required": true},'
         '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "итоговый вывод", "required": true}'
         ']}',
     ]
@@ -187,6 +195,39 @@ class ResearchPlannerSubagent(BaseSubagent):
         },
         "required": ["steps"],
     }
+    TOOL_PLAN_SPEC: list[dict[str, Any]] = [
+        {
+            "type": "function",
+            "function": {
+                "name": "emit_plan",
+                "description": "Верни валидный план сабагентов в строгом JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reasoning": {"type": "string"},
+                        "steps": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "subagent": {"type": "string", "enum": list(SUPPORTED_SUBAGENTS)},
+                                    "tool": {"type": "string"},
+                                    "args": {"type": "object"},
+                                    "depends_on": {"type": "array", "items": {"type": "string"}},
+                                    "required": {"type": "boolean"},
+                                    "timeout_seconds": {"type": "number"},
+                                    "description": {"type": "string"},
+                                },
+                                "required": ["subagent"],
+                            },
+                            "minItems": 1,
+                        },
+                    },
+                    "required": ["steps"],
+                },
+            },
+        }
+    ]
 
     def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
         """
@@ -221,30 +262,61 @@ class ResearchPlannerSubagent(BaseSubagent):
             system_prompt = self._build_system_prompt()
             user_prompt = self._build_user_prompt(user_query)
 
-            raw_response = await self.llm_client.generate(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=0.2,
-                max_tokens=900,
-                response_format={"type": "json_object"},
-            )
+            raw_response: Optional[str] = None
+            plan_source: str = "structured"
+            plan_response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "planner_plan",
+                    "schema": self.PLAN_JSON_SCHEMA,
+                },
+            }
+
+            try:
+                raw_response = await self.llm_client.generate(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.2,
+                    max_tokens=900,
+                    response_format=plan_response_format,
+                )
+            except Exception as exc_struct:
+                logger.warning(
+                    "Structured-tag plan failed: %s. Trying tool-calling fallback.",
+                    exc_struct,
+                )
+                raw_response = None
+
+            if raw_response is None:
+                plan_source = "tool"
+                raw_response = await self.llm_client.generate(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.0,
+                    max_tokens=900,
+                    response_format={"type": "json_object"},
+                    tools=self.TOOL_PLAN_SPEC,
+                    allow_tool_call=True,
+                )
 
             plan = self._parse_llm_response(raw_response)
             if not plan.steps:
                 # Попытка ремонта
                 repair_response = await self._repair_plan(raw_response, "empty or invalid plan")
+                raw_response = repair_response
+                plan_source = "structured_repair"
                 plan = self._parse_llm_response(repair_response)
 
             if not plan.steps:
                 return SubagentResult.create_error(
-                    error="LLM не вернул ни одного шага плана",
-                    data={"raw_response": raw_response},
+                    error="Ошибка: LLM не вернул ни одного шага плана",
+                    data={"raw_response": raw_response, "plan_source": plan_source},
                 )
 
             # Постобработка: удаляем дубли, добавляем финальный explainer и ограничиваем длину
             plan.steps = self._finalize_steps(plan.steps)
 
-            plan_dict = self._to_plan_dict(plan, raw_response)
+            plan_dict = self._to_plan_dict(plan, raw_response, plan_source=plan_source)
             return SubagentResult.success(data=plan_dict)
 
         except Exception as exc:
@@ -279,6 +351,7 @@ class ResearchPlannerSubagent(BaseSubagent):
             "3) Для портфельных запросов ОБЯЗАТЕЛЬНО добавляй market_data (ohlcv для всех тикеров) перед risk_analytics.\n"
             "4) Для текстового ответа всегда добавляй explainer как финальный шаг.\n"
             "5) Строго выводи JSON без Markdown/комментариев, только поля reasoning и steps.\n"
+            "6) Не добавляй текст вне JSON, не используй code fences.\n"
         )
 
     def _build_user_prompt(self, user_query: str) -> str:
@@ -435,21 +508,44 @@ class ResearchPlannerSubagent(BaseSubagent):
             "Верни только валидный JSON по той же задаче (поля reasoning и steps).\n"
             "Не добавляй текст вне JSON."
         )
-        return await self.llm_client.generate(
-            system_prompt="Исправь план в валидный JSON.",
-            user_prompt=(
-                repair_prompt
-                + "\n\nТребуемая схема:\n"
-                + str(self.PLAN_JSON_SCHEMA)
-                + "\n\nПример валидного ответа:\n"
-                '{"reasoning":"...","steps":[{"subagent":"market_data","tool":"get_ohlcv_timeseries","args":{"ticker":"SBER","from_date":"2024-11-01","to_date":"2024-12-01"},"depends_on":[],"required":true}]}\n'
-                "\nОригинальный ответ:\n"
-                + raw_response
-            ),
-            temperature=0.0,
-            max_tokens=600,
-            response_format={"type": "json_object"},
-        )
+        try:
+            return await self.llm_client.generate(
+                system_prompt="Исправь план в валидный JSON.",
+                user_prompt=(
+                    repair_prompt
+                    + "\n\nТребуемая схема:\n"
+                    + str(self.PLAN_JSON_SCHEMA)
+                    + "\n\nПример валидного ответа:\n"
+                    '{"reasoning":"...","steps":[{"subagent":"market_data","tool":"get_ohlcv_timeseries","args":{"ticker":"SBER","from_date":"2024-11-01","to_date":"2024-12-01"},"depends_on":[],"required":true}]}\n'
+                    "\nОригинальный ответ:\n"
+                    + raw_response
+                ),
+                temperature=0.0,
+                max_tokens=600,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {"name": "planner_plan", "schema": self.PLAN_JSON_SCHEMA},
+                },
+            )
+        except Exception:
+            # Fallback на tool-calling
+            return await self.llm_client.generate(
+                system_prompt="Исправь план в валидный JSON.",
+                user_prompt=(
+                    repair_prompt
+                    + "\n\nТребуемая схема:\n"
+                    + str(self.PLAN_JSON_SCHEMA)
+                    + "\n\nПример валидного ответа:\n"
+                    '{"reasoning":"...","steps":[{"subagent":"market_data","tool":"get_ohlcv_timeseries","args":{"ticker":"SBER","from_date":"2024-11-01","to_date":"2024-12-01"},"depends_on":[],"required":true}]}\n'
+                    "\nОригинальный ответ:\n"
+                    + raw_response
+                ),
+                temperature=0.0,
+                max_tokens=600,
+                response_format={"type": "json_object"},
+                tools=self.TOOL_PLAN_SPEC,
+                allow_tool_call=True,
+            )
 
     def _extract_json(self, raw_response: str) -> dict[str, Any]:
         """Извлечь JSON из ответа (учитывая возможные Markdown-кодовые блоки)."""
@@ -465,7 +561,7 @@ class ResearchPlannerSubagent(BaseSubagent):
 
         raise ValueError("LLM response is not valid JSON")
 
-    def _to_plan_dict(self, plan: PlannerOutput, raw_response: str) -> dict[str, Any]:
+    def _to_plan_dict(self, plan: PlannerOutput, raw_response: str, plan_source: str = "structured") -> dict[str, Any]:
         """Сконвертировать PlannerOutput в дикт для SubagentResult.data."""
         steps_payload = [
             {
@@ -486,6 +582,7 @@ class ResearchPlannerSubagent(BaseSubagent):
                 "steps": steps_payload,
             },
             "raw_llm_response": raw_response,
+            "plan_source": plan_source,
         }
 
     # ------------------------------------------------------------------ #

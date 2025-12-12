@@ -94,8 +94,10 @@ class DashboardSubagent(BaseSubagent):
             risk_data = context.get_result("risk_analytics")
             if not risk_data:
                 logger.warning("No risk_analytics data in intermediate_results")
+                self._log_inputs(risk_data, context)
                 # Создаём пустой дашборд
                 dashboard = self._build_empty_dashboard(context)
+                self._log_outputs(dashboard, context, risk_data)
                 return SubagentResult.partial(
                     data=dashboard,
                     error="Данные risk_analytics недоступны. Дашборд создан с ограничениями.",
@@ -111,6 +113,7 @@ class DashboardSubagent(BaseSubagent):
                 len(dashboard.tables),
                 len(dashboard.alerts),
             )
+            self._log_outputs(dashboard, context, risk_data)
 
             return SubagentResult.success(
                 data=dashboard,
@@ -163,6 +166,9 @@ class DashboardSubagent(BaseSubagent):
             metadata=self._build_metadata(context, risk_data),
         )
 
+        # Если есть данные ребалансировки — обработать первым, чтобы не показывать "нет данных"
+        has_rebalance = self._add_rebalance_blocks(dashboard, risk_data)
+
         # 1. Добавляем карточки метрик
         self._add_portfolio_metrics(dashboard, risk_data)
         self._add_concentration_metrics(dashboard, risk_data)
@@ -196,6 +202,7 @@ class DashboardSubagent(BaseSubagent):
             or dashboard.tables
             or dashboard.charts
             or dashboard.alerts
+            or has_rebalance
         )
 
         fallback_message = None
@@ -227,6 +234,155 @@ class DashboardSubagent(BaseSubagent):
             )
 
         return dashboard
+
+    def _add_rebalance_blocks(self, dashboard: RiskDashboardSpec, risk_data: dict[str, Any]) -> bool:
+        """Обработать результат suggest_rebalance: target_weights, trades, summary."""
+        rebalance_block = risk_data.get("rebalance_proposal") or {}
+        target_weights = rebalance_block.get("target_weights") or risk_data.get("target_weights")
+        trades = rebalance_block.get("trades") or risk_data.get("trades")
+        summary = rebalance_block.get("summary") or risk_data.get("summary")
+
+        has_data = bool(target_weights) or bool(trades) or bool(summary)
+        if not has_data:
+            return False
+
+        # Таблица целевых весов
+        if isinstance(target_weights, dict) and target_weights:
+            rows = []
+            for ticker, weight in target_weights.items():
+                try:
+                    pct = float(weight) * 100
+                except Exception:
+                    pct = 0.0
+                rows.append([str(ticker), f"{pct:.2f}"])
+            dashboard.add_table(
+                id="rebalance_target_weights",
+                title="Целевые веса после ребалансировки",
+                columns=[("ticker", "Тикер"), ("weight_pct", "Вес, %")],
+                rows=rows,
+                data_ref="data.rebalance.target_weights",
+            )
+
+        # Таблица сделок
+        if isinstance(trades, list) and trades:
+            rows = []
+            for trade in trades:
+                if not isinstance(trade, dict):
+                    continue
+                rows.append(
+                    [
+                        str(trade.get("ticker", "")),
+                        str(trade.get("side", "")),
+                        self._format_percent(trade.get("weight_delta")),
+                        self._format_percent(trade.get("target_weight")),
+                        self._format_currency(trade.get("estimated_value")),
+                        str(trade.get("reason", "")),
+                    ]
+                )
+            dashboard.add_table(
+                id="rebalance_trades",
+                title="Предложенные сделки",
+                columns=[
+                    ("ticker", "Тикер"),
+                    ("side", "Сторона"),
+                    ("weight_delta", "Δ вес, %"),
+                    ("target_weight", "Целевой вес, %"),
+                    ("estimated_value", "Оценка, ₽"),
+                    ("reason", "Причина"),
+                ],
+                rows=rows,
+                data_ref="data.rebalance.trades",
+            )
+
+        # Карточки из summary
+        if isinstance(summary, dict) and summary:
+            total_turnover = summary.get("total_turnover")
+            turnover_within_limit = summary.get("turnover_within_limit")
+            positions_changed = summary.get("positions_changed")
+            warnings = summary.get("warnings") or []
+
+            if total_turnover is not None:
+                dashboard.add_metric_card(
+                    id="rebalance_total_turnover",
+                    title="Оборот ребалансировки",
+                    value=total_turnover * 100 if isinstance(total_turnover, (int, float)) else total_turnover,
+                    unit="%",
+                    status=MetricSeverity.INFO,
+                )
+            if turnover_within_limit is not None:
+                dashboard.add_metric_card(
+                    id="rebalance_turnover_within_limit",
+                    title="Turnover в лимите",
+                    value="Да" if turnover_within_limit else "Нет",
+                    unit="",
+                    status=MetricSeverity.INFO if turnover_within_limit else MetricSeverity.WARNING,
+                )
+            if positions_changed is not None:
+                dashboard.add_metric_card(
+                    id="rebalance_positions_changed",
+                    title="Позиции с изменениями",
+                    value=positions_changed,
+                    unit="",
+                    status=MetricSeverity.INFO,
+                )
+            if warnings:
+                dashboard.add_metric_card(
+                    id="rebalance_warnings",
+                    title="Предупреждения при ребалансировке",
+                    value=len(warnings),
+                    unit="",
+                    status=MetricSeverity.WARNING,
+                )
+
+        # Расширяем data payload
+        rebalance_block_out: dict[str, Any] = {}
+        if isinstance(target_weights, dict):
+            rebalance_block_out["target_weights"] = target_weights
+        if isinstance(trades, list):
+            rebalance_block_out["trades"] = trades
+        if isinstance(summary, dict):
+            rebalance_block_out["summary"] = summary
+
+        # если пришло как rebalance_proposal — сохраняем исходное
+        if rebalance_block:
+            rebalance_block_out.setdefault("raw", rebalance_block)
+
+        if rebalance_block_out:
+            dashboard.data["rebalance"] = rebalance_block_out
+
+        return True
+
+    def _log_inputs(self, risk_data: Any, context: AgentContext) -> None:
+        """Логируем, что пришло на вход дашборду (только агрегаты, без больших payload)."""
+        rd = risk_data if isinstance(risk_data, dict) else {}
+        summary = {
+            "session": context.session_id,
+            "scenario": context.scenario_type,
+            "risk_keys": sorted(rd.keys()) if isinstance(rd, dict) else str(type(risk_data)),
+            "per_instrument_len": len(rd.get("per_instrument", [])) if isinstance(rd, dict) else 0,
+            "stress_len": len(rd.get("stress_results", [])) if isinstance(rd, dict) else 0,
+            "rebalance_keys": list((rd.get("rebalance_proposal") or {}).keys()) if isinstance(rd, dict) else [],
+        }
+        logger.info("DashboardSubagent: inputs summary %s", summary)
+
+    def _log_outputs(
+        self,
+        dashboard: RiskDashboardSpec,
+        context: AgentContext,
+        risk_data: Any = None,
+    ) -> None:
+        """Логируем агрегаты итогового дашборда."""
+        data_keys = list(dashboard.data.keys()) if isinstance(dashboard.data, dict) else []
+        summary = {
+            "session": context.session_id,
+            "scenario": context.scenario_type,
+            "metric_cards": len(dashboard.metric_cards),
+            "tables": len(dashboard.tables),
+            "charts": len(dashboard.charts),
+            "alerts": len(dashboard.alerts),
+            "data_keys": data_keys,
+        }
+        logger.info("DashboardSubagent: output summary %s", summary)
 
     def _build_metadata(
         self, context: AgentContext, risk_data: dict[str, Any]

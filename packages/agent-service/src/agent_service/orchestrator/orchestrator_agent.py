@@ -408,6 +408,14 @@ class OrchestratorAgent:
         seen: set[str] = set()
         missing_required: list[str] = []
         planned_steps_payload: list[dict[str, Any]] = []
+        dashboard_required_scenarios = {
+            "portfolio_risk",
+            "portfolio_risk_basic",
+            "cfo_liquidity",
+            "issuer_compare",
+            "securities_compare",
+            "index_scan",
+        }
 
         def _is_tool_supported(agent: Any, tool_name: str) -> bool:
             if not tool_name:
@@ -453,8 +461,6 @@ class OrchestratorAgent:
                     tool,
                     subagent,
                 )
-                if required:
-                    missing_required.append(f"{subagent}:{tool}")
                 continue
 
             steps.append(
@@ -480,11 +486,52 @@ class OrchestratorAgent:
             if len(steps) >= self.max_dynamic_steps:
                 break
 
-        # Дополнительное требование: для портфельного риска нужен market_data
-        scenario_str = context.scenario_type or ""
-        need_market = scenario_str in {"portfolio_risk", "portfolio_risk_basic"}
+        scenario_str = (context.scenario_type or "").lower()
+
+        # Инъекция обязательного dashboard для сценариев из списка
+        if scenario_str in dashboard_required_scenarios and "dashboard" not in seen:
+            dash_depends: list[str] = []
+            if "risk_analytics" in seen:
+                dash_depends = ["risk_analytics"]
+            elif "market_data" in seen:
+                dash_depends = ["market_data"]
+
+            if len(steps) >= self.max_dynamic_steps:
+                removed = False
+                for idx in range(len(steps) - 1, -1, -1):
+                    if not steps[idx].required:
+                        steps.pop(idx)
+                        planned_steps_payload.pop(idx)
+                        removed = True
+                        break
+                if not removed:
+                    logger.warning("Dynamic plan rejected: cannot insert required dashboard step")
+                    return None
+
+            steps.append(
+                PipelineStep(
+                    subagent_name="dashboard",
+                    required=True,
+                    timeout_seconds=15.0,
+                    depends_on=dash_depends,
+                )
+            )
+            planned_steps_payload.append(
+                {
+                    "subagent": "dashboard",
+                    "required": True,
+                    "depends_on": dash_depends,
+                    "timeout_seconds": 15.0,
+                    "tool": None,
+                    "args": {},
+                }
+            )
+            seen.add("dashboard")
+
+        # Дополнительное требование: для портфельных/CFO сценариев нужен market_data
+        need_market = scenario_str in {"portfolio_risk", "portfolio_risk_basic", "cfo_liquidity"}
         if need_market and "market_data" not in seen:
-            logger.warning("Dynamic plan rejected: portfolio risk requires market_data step")
+            logger.warning("Dynamic plan rejected: portfolio/cfo scenarios require market_data step")
             return None
 
         if missing_required:

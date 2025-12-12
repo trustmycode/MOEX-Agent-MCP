@@ -145,7 +145,7 @@ class TestExplainerSubagentBasic:
     ):
         """Проверить имя и возможности сабагента."""
         assert explainer_subagent.name == "explainer"
-        assert "generate_portfolio_report" in explainer_subagent.capabilities
+        assert "generate_report" in explainer_subagent.capabilities
         assert "adapt_to_user_role" in explainer_subagent.capabilities
 
     @pytest.mark.asyncio

@@ -3,9 +3,10 @@ from __future__ import annotations
 # pyright: reportMissingImports=false
 
 import asyncio
+import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from openai import (
     APIConnectionError,
@@ -21,7 +22,6 @@ DEFAULT_API_BASE = "https://foundation-models.api.cloud.ru/v1"
 DEFAULT_MODEL_MAIN = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 DEFAULT_MODEL_FALLBACK = "openai/gpt-oss-120b"
 DEFAULT_MODEL_DEV = "Qwen/Qwen3-235B-A22B-Instruct-2507"
-
 
 class EvolutionLLMClient:
     """
@@ -75,6 +75,11 @@ class EvolutionLLMClient:
         temperature: float = 0.3,
         max_tokens: int = 2000,
         response_format: Optional[dict] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        allow_tool_call: bool = False,
+        structured_schema: Optional[dict[str, Any]] = None,
+        structured_name: str = "result",
+        prefer_structured: Optional[bool] = None,
     ) -> str:
         """
         Сгенерировать текст с учётом системного и пользовательского промптов.
@@ -87,6 +92,17 @@ class EvolutionLLMClient:
         ]
 
         last_error: Optional[Exception] = None
+        response_format_final = response_format
+
+        if structured_schema is not None:
+            response_format_final = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": structured_name or "result",
+                    "schema": structured_schema,
+                },
+            }
+
         for model in self._get_model_sequence():
             try:
                 return await self._call_model(
@@ -94,7 +110,9 @@ class EvolutionLLMClient:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    response_format=response_format,
+                    response_format=response_format_final,
+                    tools=tools,
+                    allow_tool_call=allow_tool_call,
                 )
             except Exception as exc:
                 last_error = exc
@@ -103,6 +121,48 @@ class EvolutionLLMClient:
                     model,
                     type(exc).__name__,
                 )
+
+                # Fallback: если json_schema не прошёл, пробуем json_object
+                if response_format_final and response_format_final.get("type") == "json_schema":
+                    try:
+                        return await self._call_model(
+                            model=model,
+                            messages=messages,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            response_format={"type": "json_object"},
+                            tools=tools,
+                            allow_tool_call=allow_tool_call,
+                        )
+                    except Exception as rf_exc:
+                        last_error = rf_exc
+                        logger.warning(
+                            "JSON schema fallback to json_object failed for model %s (%s)",
+                            model,
+                            type(rf_exc).__name__,
+                        )
+
+                # Fallback на tool-calling, если доступен
+                if tools:
+                    try:
+                        return await self._call_model(
+                            model=model,
+                            messages=messages,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            response_format=None,
+                            tools=tools,
+                            tool_choice="auto",
+                            allow_tool_call=True,
+                        )
+                    except Exception as tool_exc:
+                        last_error = tool_exc
+                        logger.warning(
+                            "Tool-calling fallback failed for model %s (%s)",
+                            model,
+                            type(tool_exc).__name__,
+                        )
+                        continue
                 continue
 
         if last_error:
@@ -117,6 +177,9 @@ class EvolutionLLMClient:
         temperature: float,
         max_tokens: int,
         response_format: Optional[dict],
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: Optional[Any] = None,
+        allow_tool_call: bool = False,
     ) -> str:
         """Вызвать конкретную модель с ретраем и backoff."""
         last_error: Optional[Exception] = None
@@ -129,11 +192,24 @@ class EvolutionLLMClient:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format=response_format,
+                    tools=tools,
+                    tool_choice=tool_choice,
                     timeout=self.request_timeout,
                 )
 
                 choice = (response.choices or [None])[0]
-                if not choice or not choice.message or not choice.message.content:
+                if not choice or not choice.message:
+                    return ""
+
+                # Поддержка tool-calling fallback: если модель вернула tool_calls и это разрешено
+                if allow_tool_call and getattr(choice.message, "tool_calls", None):
+                    tool_calls = choice.message.tool_calls
+                    if tool_calls:
+                        first_call = tool_calls[0]
+                        # arguments уже строка JSON
+                        return first_call.function.arguments  # type: ignore[return-value]
+
+                if not choice.message.content:
                     return ""
                 return choice.message.content
 

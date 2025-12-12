@@ -19,6 +19,7 @@ class DummyLLM:
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 800,
+        **kwargs,
     ) -> str:
         return json.dumps(
             {
@@ -40,6 +41,7 @@ class BadLLM:
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 800,
+        **kwargs,
     ) -> str:
         return "not-a-json"
 
