@@ -6,22 +6,24 @@ import { MetricCard } from './MetricCard';
 import { AllocationChart } from './charts/AllocationChart';
 import { EquityChart } from './charts/EquityChart';
 import { RiskTable } from './tables/RiskTable';
-import type { RiskDashboardSpec } from './types';
-import { formatAsOf, resolveDataRef } from './utils';
+import type { Alert, ChartSpec, LayoutItem, Metric, RiskDashboardSpec, TableSpec } from './types';
+import { formatAsOf, resolveDataRef, toArray } from './utils';
 
 type Props = {
   data: RiskDashboardSpec;
 };
 
 export function RiskCockpit({ data }: Props) {
-  if (data.layout && data.layout.length > 0) {
-    return <DashboardRenderer spec={data} />;
-  }
+  const layout = toArray<LayoutItem>(data.layout);
+  const metrics = toArray<Metric>(data.metrics);
+  const charts = toArray<ChartSpec>(data.charts);
+  const tables = toArray<TableSpec>(data.tables);
+  const alerts = toArray<Alert>(data.alerts);
+  const metadata = data.metadata ?? { as_of: '' };
 
-  const metrics = data.metrics ?? [];
-  const charts = data.charts ?? [];
-  const tables = data.tables ?? [];
-  const alerts = data.alerts ?? [];
+  if (layout.length > 0) {
+    return <DashboardRenderer spec={{ ...data, layout, metrics, charts, tables, alerts, metadata }} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -30,19 +32,19 @@ export function RiskCockpit({ data }: Props) {
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-400">Портфель</p>
             <p className="text-xl font-semibold text-white">
-              {data.metadata.portfolio_id ?? 'Портфель (demo)'}
+              {metadata.portfolio_id ?? 'Портфель (demo)'}
             </p>
             <p className="text-sm text-slate-400">
-              Сценарий: {data.metadata.scenario_type ?? '—'}
+              Сценарий: {metadata.scenario_type ?? '—'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">
-              Дата: {formatAsOf(data.metadata.as_of)}
+              Дата: {formatAsOf(metadata.as_of ?? '')}
             </span>
-            {data.metadata.base_currency && (
+            {metadata.base_currency && (
               <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">
-                Валюта: {data.metadata.base_currency}
+                Валюта: {metadata.base_currency}
               </span>
             )}
           </div>

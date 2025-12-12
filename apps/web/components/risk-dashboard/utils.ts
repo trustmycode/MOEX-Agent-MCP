@@ -114,6 +114,7 @@ export function formatAsOf(asOf: string): string {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'UTC',
     timeZoneName: 'short',
   }).format(date);
 }
@@ -128,3 +129,7 @@ export const chartPalette = [
   '#0ea5e9',
   '#8b5cf6',
 ];
+
+export function toArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}

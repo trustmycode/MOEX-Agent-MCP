@@ -5,8 +5,8 @@ import { MetricCard } from './MetricCard';
 import { AllocationChart } from './charts/AllocationChart';
 import { EquityChart } from './charts/EquityChart';
 import { RiskTable } from './tables/RiskTable';
-import type { LayoutItem, RiskDashboardSpec } from './types';
-import { formatAsOf, resolveDataRef } from './utils';
+import type { Alert, ChartSpec, LayoutItem, Metric, RiskDashboardSpec, TableSpec } from './types';
+import { formatAsOf, resolveDataRef, toArray } from './utils';
 
 type Props = {
   spec: RiskDashboardSpec;
@@ -23,11 +23,13 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
 }
 
 export function DashboardRenderer({ spec, validationErrors }: Props) {
-  const layout = spec.layout ?? [];
-  const metrics = spec.metrics ?? [];
-  const charts = spec.charts ?? [];
-  const tables = spec.tables ?? [];
-  const alerts = spec.alerts ?? [];
+  const layout = toArray<LayoutItem>(spec.layout);
+  const metrics = toArray<Metric>(spec.metrics);
+  const charts = toArray<ChartSpec>(spec.charts);
+  const tables = toArray<TableSpec>(spec.tables);
+  const alerts = toArray<Alert>(spec.alerts);
+  const metadata = spec.metadata ?? { as_of: '' };
+  const validationList = toArray<string>(validationErrors);
 
   const metricMap = new Map(metrics.map((m) => [m.id, m]));
   const chartMap = new Map(charts.map((c) => [c.id, c]));
@@ -36,7 +38,7 @@ export function DashboardRenderer({ spec, validationErrors }: Props) {
   const renderWidget = (item: LayoutItem) => {
     switch (item.type) {
       case 'kpi_grid': {
-        const ids = item.metric_ids?.length ? item.metric_ids : metrics.map((m) => m.id);
+        const ids = Array.isArray(item.metric_ids) && item.metric_ids.length ? item.metric_ids : metrics.map((m) => m.id);
         const selected = ids.map((id) => metricMap.get(id)).filter(Boolean);
         return (
           <Section key={item.id} title={item.title ?? 'Ключевые метрики'}>
@@ -60,7 +62,7 @@ export function DashboardRenderer({ spec, validationErrors }: Props) {
       }
       case 'alert_list': {
         const selectedAlerts =
-          item.alert_ids && item.alert_ids.length > 0
+          Array.isArray(item.alert_ids) && item.alert_ids.length > 0
             ? alerts.filter((a) => item.alert_ids?.includes(a.id))
             : alerts;
         return (
@@ -122,20 +124,16 @@ export function DashboardRenderer({ spec, validationErrors }: Props) {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-400">Портфель</p>
-            <p className="text-xl font-semibold text-white">
-              {spec.metadata.portfolio_id ?? 'Портфель (demo)'}
-            </p>
-            <p className="text-sm text-slate-400">
-              Сценарий: {spec.metadata.scenario_type ?? '—'}
-            </p>
+            <p className="text-xl font-semibold text-white">{metadata.portfolio_id ?? 'Портфель (demo)'}</p>
+            <p className="text-sm text-slate-400">Сценарий: {metadata.scenario_type ?? '—'}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">
-              Дата: {formatAsOf(spec.metadata.as_of)}
+              Дата: {formatAsOf(metadata.as_of ?? '')}
             </span>
-            {spec.metadata.base_currency && (
+            {metadata.base_currency && (
               <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">
-                Валюта: {spec.metadata.base_currency}
+                Валюта: {metadata.base_currency}
               </span>
             )}
             {spec.version && (
@@ -145,11 +143,11 @@ export function DashboardRenderer({ spec, validationErrors }: Props) {
             )}
           </div>
         </div>
-        {validationErrors && validationErrors.length > 0 && (
+        {validationList.length > 0 && (
           <div className="mt-3 rounded-lg border border-amber-700/70 bg-amber-900/20 p-2 text-xs text-amber-100">
             <p className="font-semibold">Ошибки схемы:</p>
             <ul className="list-disc pl-4">
-              {validationErrors.map((err) => (
+              {validationList.map((err) => (
                 <li key={err}>{err}</li>
               ))}
             </ul>

@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ChartSpec, RiskDashboardSpec } from '../types';
-import { chartPalette, resolveDataRef } from '../utils';
+import { chartPalette, resolveDataRef, toArray } from '../utils';
 
 type Props = {
   chart: ChartSpec;
@@ -24,9 +24,10 @@ function buildLineData(chart: ChartSpec, dashboard: RiskDashboardSpec) {
   const xField = chart.x_axis?.field ?? 'x';
   const yField = chart.y_axis?.field ?? 'value';
   const map = new Map<string | number, Record<string, unknown>>();
+  const seriesList = toArray(chart.series);
 
-  chart.series.forEach((series) => {
-    const rows = resolveDataRef<SeriesRow[]>(dashboard, series.data_ref) ?? [];
+  seriesList.forEach((series) => {
+    const rows = toArray<SeriesRow>(resolveDataRef<SeriesRow[]>(dashboard, series.data_ref));
     rows.forEach((row, idx) => {
       const xValue = (row as Record<string, unknown>)[xField] ?? idx;
       const yValue =
@@ -63,9 +64,10 @@ function formatTick(value: string | number) {
 
 export function EquityChart({ chart, dashboard }: Props) {
   const data = buildLineData(chart, dashboard);
+  const seriesList = toArray(chart.series);
   const xField = chart.x_axis?.field ?? 'x';
 
-  if (data.length === 0) {
+  if (seriesList.length === 0 || data.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-slate-400">
         Нет данных для графика {chart.title}
@@ -109,7 +111,7 @@ export function EquityChart({ chart, dashboard }: Props) {
               labelFormatter={formatTick}
             />
             <Legend />
-            {chart.series.map((series, idx) => (
+            {seriesList.map((series, idx) => (
               <Line
                 key={series.id}
                 type="monotone"

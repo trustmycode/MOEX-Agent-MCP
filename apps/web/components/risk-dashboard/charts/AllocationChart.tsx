@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ChartSpec, RiskDashboardSpec } from '../types';
-import { chartPalette, resolveDataRef } from '../utils';
+import { chartPalette, resolveDataRef, toArray } from '../utils';
 
 type Props = {
   chart: ChartSpec;
@@ -22,9 +22,11 @@ type Props = {
 };
 
 function renderBar(chart: ChartSpec, dashboard: RiskDashboardSpec) {
-  const series = chart.series[0];
-  const data =
-    resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref) ?? [];
+  const seriesList = toArray(chart.series);
+  const series = seriesList[0];
+  const data = toArray<Record<string, unknown>>(
+    resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref),
+  );
   const nameKey = chart.x_axis?.field ?? 'name';
   const valueKey = chart.y_axis?.field ?? 'value';
 
@@ -84,9 +86,11 @@ function renderBar(chart: ChartSpec, dashboard: RiskDashboardSpec) {
 }
 
 function renderPie(chart: ChartSpec, dashboard: RiskDashboardSpec) {
-  const series = chart.series[0];
-  const data =
-    resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref) ?? [];
+  const seriesList = toArray(chart.series);
+  const series = seriesList[0];
+  const data = toArray<Record<string, unknown>>(
+    resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref),
+  );
   const nameKey = chart.x_axis?.field ?? 'name';
   const valueKey = chart.y_axis?.field ?? 'value';
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import { DashboardRenderer } from "@/components/risk-dashboard/DashboardRenderer";
@@ -54,7 +54,25 @@ function ChatPageInner() {
     "idle",
   );
   const [error, setError] = useState<string | null>(null);
-  const threadIdRef = useRef<string>(crypto.randomUUID());
+  const [threadId, setThreadId] = useState<string>("");
+  const threadIdRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!threadIdRef.current) {
+      const nextId = crypto.randomUUID();
+      threadIdRef.current = nextId;
+      setThreadId(nextId);
+    }
+  }, []);
+
+  const ensureThreadId = useCallback(() => {
+    if (!threadIdRef.current) {
+      const nextId = crypto.randomUUID();
+      threadIdRef.current = nextId;
+      setThreadId(nextId);
+    }
+    return threadIdRef.current;
+  }, []);
 
   const ajv = useMemo(() => {
     const instance = new Ajv({ allErrors: true, strict: false });
@@ -238,6 +256,7 @@ function ChatPageInner() {
     async (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!input.trim()) return;
+      const currentThreadId = ensureThreadId();
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -249,7 +268,7 @@ function ChatPageInner() {
 
       const runId = crypto.randomUUID();
       const body = {
-        threadId: threadIdRef.current,
+        threadId: currentThreadId,
         runId,
         messages: [{ role: "user", content: input.trim() }],
         state: {},
@@ -262,7 +281,7 @@ function ChatPageInner() {
       reset();
       await streamRun(body);
     },
-    [input, reset, streamRun],
+    [ensureThreadId, input, reset, streamRun],
   );
 
   const handleTextareaKeyDown = useCallback(
@@ -312,7 +331,7 @@ function ChatPageInner() {
               onKeyDown={handleTextareaKeyDown}
             />
             <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-400">Thread ID: {threadIdRef.current}</p>
+              <p className="text-xs text-slate-400">Thread ID: {threadId || "—"}</p>
               <button
                 type="submit"
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-500 disabled:opacity-60"

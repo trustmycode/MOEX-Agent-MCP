@@ -7,7 +7,7 @@ import {
   OctagonAlert,
   ShieldAlert,
 } from 'lucide-react';
-import { getSeverityTheme } from './utils';
+import { getSeverityTheme, toArray } from './utils';
 import type { Alert } from './types';
 
 type Props = {
@@ -27,18 +27,20 @@ const severityIcon: Record<
 };
 
 export function AlertBlock({ alerts }: Props) {
-  if (!alerts || alerts.length === 0) return null;
+  const safeAlerts = toArray<Alert>(alerts);
+  if (safeAlerts.length === 0) return null;
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold text-white">Предупреждения</p>
-        <span className="text-xs text-slate-400">{alerts.length} шт.</span>
+        <span className="text-xs text-slate-400">{safeAlerts.length} шт.</span>
       </div>
       <div className="space-y-3">
-        {alerts.map((alert) => {
+        {safeAlerts.map((alert) => {
           const Icon = severityIcon[alert.severity] ?? CircleAlert;
           const theme = getSeverityTheme(alert.severity);
+          const relatedIds = toArray(alert.related_ids);
           return (
             <div
               key={alert.id}
@@ -47,9 +49,9 @@ export function AlertBlock({ alerts }: Props) {
               <Icon className={`h-5 w-5 ${theme.accent} shrink-0`} />
               <div className="space-y-1">
                 <p className={`${theme.text} text-sm leading-snug`}>{alert.message}</p>
-                {alert.related_ids && alert.related_ids.length > 0 && (
+                {relatedIds.length > 0 && (
                   <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                    {alert.related_ids.map((rel) => (
+                    {relatedIds.map((rel) => (
                       <span
                         key={rel}
                         className="rounded-full bg-slate-800/70 px-2 py-0.5 text-[11px] uppercase tracking-wide"
