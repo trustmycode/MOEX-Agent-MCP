@@ -220,7 +220,21 @@ class OrchestratorAgent:
                     if planned_steps_payload:
                         context.set_metadata("planned_steps", planned_steps_payload)
                 else:
-                    logger.warning("Plan-first включён, но планировщик не вернул план — fallback на статическую логику")
+                    logger.warning("Plan-first включён, но планировщик не вернул валидный план")
+                    # Жёсткий режим: не падаем в статику без ведома
+                    return A2AOutput.error(
+                        error_message="Планировщик не вернул валидный план",
+                        debug=self._build_debug_info(
+                            scenario_type,
+                            confidence,
+                            planned_pipeline_steps or [],
+                            subagent_traces,
+                            start_time,
+                            plan_source="fallback",
+                            planner_reasoning=planner_reasoning,
+                            raw_planner_response=raw_planner_response,
+                        ),
+                    )
 
             # 4b: Статика/динамика по порогу, если планировщик не сработал
             need_dynamic = (
@@ -329,6 +343,8 @@ class OrchestratorAgent:
             )
             trace.duration_ms = (time.perf_counter() - start_time) * 1000
 
+            logger.debug("Research planner raw result: %s", planner_result.data)
+
             if not planner_result.is_success or not planner_result.data:
                 trace.status = "error"
                 trace.error = planner_result.error_message or "Planner returned no data"
@@ -346,6 +362,9 @@ class OrchestratorAgent:
                 trace.status = "error"
                 trace.error = "Invalid or empty plan"
                 subagent_traces.append(trace)
+                raw_resp = planner_result.data.get("raw_llm_response") if isinstance(planner_result.data, dict) else None
+                logger.warning("Planner returned invalid plan; raw_llm_response=%s", raw_resp)
+                # Если планировщик включён как основной — возвращаем None, чтобы вызвать fallback или ошибку
                 return None
 
             trace.status = "success"
@@ -461,11 +480,19 @@ class OrchestratorAgent:
             if len(steps) >= self.max_dynamic_steps:
                 break
 
+        # Дополнительное требование: для портфельного риска нужен market_data
+        scenario_str = context.scenario_type or ""
+        need_market = scenario_str in {"portfolio_risk", "portfolio_risk_basic"}
+        if need_market and "market_data" not in seen:
+            logger.warning("Dynamic plan rejected: portfolio risk requires market_data step")
+            return None
+
         if missing_required:
             logger.warning(
                 "Dynamic plan contains unavailable required subagents: %s",
                 missing_required,
             )
+            return None
 
         if not steps:
             return None

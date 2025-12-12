@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AG-UI для MOEX Market Analyst Agent
 
-## Getting Started
+Next.js UI, который общается с агентом по SSE (`/agui`) и отображает текст, таблицы и дашборды риска.
 
-First, run the development server:
-
+## Быстрый старт (локально)
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd apps/web
+pnpm install        # или npm/yarn
+pnpm dev            # порт 3000
 ```
+Открыть: http://localhost:3000
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Переменные окружения (см. корневой `.env`):
+- `WEB_PORT` — порт UI (по умолчанию 3000)
+- `AGENT_SERVICE_URL` — endpoint агента для AG-UI, например `http://localhost:8100/agui` или `http://agent:8100/agui` в docker-compose.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Через docker-compose (рекомендуется)
+В корне репозитория:
+```bash
+make local-up   # поднимет moex-iss-mcp, risk-analytics-mcp, agent, web
+```
+UI доступен на `http://localhost:${WEB_PORT:-3000}`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Функциональность
+- Чат с агентом (A2A/AG-UI протокол).
+- Отображение TEXT_MESSAGE_* и STATE_SNAPSHOT (дашборд/таблицы).
+- Передача `state`/`context` для сценариев (parsed_params, locale, user_role).
 
-## Learn More
+## Деплой
+- Платформа: linux/amd64.
+- Dockerfile в `apps/web/Dockerfile`, аргумент `NEXT_DISABLE_SOURCEMAPS=1` по умолчанию.
+- В Evolution AI Agents UI указывайте `AGENT_SERVICE_URL` на внешний адрес агента.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

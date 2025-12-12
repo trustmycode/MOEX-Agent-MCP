@@ -111,8 +111,9 @@ class ResearchPlannerSubagent(BaseSubagent):
         '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["market_data"], "description": "текстовый ответ", "required": true}'
         ']}',
         # Портфельный риск
-        '{"reasoning": "Портфель: сразу считаем риск по позициям и строим дашборд", "steps": ['
-        '{"subagent": "risk_analytics", "tool": "compute_portfolio_risk_basic", "args": {"positions": [{"ticker": "SBER", "weight": 0.5}, {"ticker": "GAZP", "weight": 0.5}], "from_date": "2024-10-01", "to_date": "2024-12-01"}, "depends_on": [], "description": "расчёт риска", "required": true},'
+        '{"reasoning": "Портфель: сначала данные, затем риск и отчёт", "steps": ['
+        '{"subagent": "market_data", "tool": "get_ohlcv_timeseries", "args": {"ticker": "SBER", "from_date": "2024-10-01", "to_date": "2024-12-01"}, "depends_on": [], "description": "получить цены портфеля", "required": true},'
+        '{"subagent": "risk_analytics", "tool": "compute_portfolio_risk_basic", "args": {"positions": [{"ticker": "SBER", "weight": 0.5}, {"ticker": "GAZP", "weight": 0.5}], "from_date": "2024-10-01", "to_date": "2024-12-01"}, "depends_on": ["market_data"], "description": "расчёт риска", "required": true},'
         '{"subagent": "dashboard", "tool": "build_dashboard", "args": {}, "depends_on": ["risk_analytics"], "description": "собрать дашборд", "required": false},'
         '{"subagent": "explainer", "tool": "generate_report", "args": {}, "depends_on": ["risk_analytics"], "description": "итоговый текст", "required": true}'
         ']}',
@@ -159,6 +160,33 @@ class ResearchPlannerSubagent(BaseSubagent):
             {"tool": "generate_report", "required_args": [], "optional_args": []},
         ],
     }
+    PLAN_JSON_SCHEMA: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "reasoning": {"type": "string"},
+            "steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "subagent": {"type": "string", "enum": list(SUPPORTED_SUBAGENTS)},
+                        "tool": {"type": "string"},
+                        "args": {"type": "object"},
+                        "depends_on": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "required": {"type": "boolean"},
+                        "timeout_seconds": {"type": "number"},
+                        "description": {"type": "string"},
+                    },
+                    "required": ["subagent"],
+                },
+                "minItems": 1,
+            },
+        },
+        "required": ["steps"],
+    }
 
     def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
         """
@@ -189,6 +217,7 @@ class ResearchPlannerSubagent(BaseSubagent):
         user_query = context.user_query
 
         try:
+            # Первая попытка
             system_prompt = self._build_system_prompt()
             user_prompt = self._build_user_prompt(user_query)
 
@@ -197,9 +226,15 @@ class ResearchPlannerSubagent(BaseSubagent):
                 user_prompt=user_prompt,
                 temperature=0.2,
                 max_tokens=900,
+                response_format={"type": "json_object"},
             )
 
             plan = self._parse_llm_response(raw_response)
+            if not plan.steps:
+                # Попытка ремонта
+                repair_response = await self._repair_plan(raw_response, "empty or invalid plan")
+                plan = self._parse_llm_response(repair_response)
+
             if not plan.steps:
                 return SubagentResult.create_error(
                     error="LLM не вернул ни одного шага плана",
@@ -241,8 +276,9 @@ class ResearchPlannerSubagent(BaseSubagent):
             "Правила:\n"
             "1) Не делай циклов, максимум 5 шагов.\n"
             "2) Указывай конкретный tool и аргументы, если нужны данные/расчёты.\n"
-            "3) Для текстового ответа всегда добавляй explainer как финальный шаг.\n"
-            "4) Строго выводи JSON без Markdown/комментариев, только поля reasoning и steps.\n"
+            "3) Для портфельных запросов ОБЯЗАТЕЛЬНО добавляй market_data (ohlcv для всех тикеров) перед risk_analytics.\n"
+            "4) Для текстового ответа всегда добавляй explainer как финальный шаг.\n"
+            "5) Строго выводи JSON без Markdown/комментариев, только поля reasoning и steps.\n"
         )
 
     def _build_user_prompt(self, user_query: str) -> str:
@@ -277,7 +313,11 @@ class ResearchPlannerSubagent(BaseSubagent):
 
     def _parse_llm_response(self, raw_response: str) -> PlannerOutput:
         """Распарсить и провалидировать ответ LLM в PlannerOutput."""
-        payload = self._extract_json(raw_response)
+        try:
+            payload = self._extract_json(raw_response)
+        except ValueError:
+            logger.warning("Planner returned non-JSON response: %s", raw_response)
+            return PlannerOutput(reasoning="", steps=[])
 
         reasoning = payload.get("reasoning") or payload.get("analysis") or ""
         raw_steps = payload.get("steps") or []
@@ -307,7 +347,7 @@ class ResearchPlannerSubagent(BaseSubagent):
                 invalid_steps.append(str(normalized))
 
         if invalid_steps:
-            logger.info("Planner dropped invalid steps: %s", invalid_steps)
+            logger.warning("Planner dropped invalid steps: %s; raw_response=%s", invalid_steps, raw_response)
 
         return PlannerOutput(reasoning=reasoning, steps=steps)
 
@@ -321,6 +361,14 @@ class ResearchPlannerSubagent(BaseSubagent):
             or raw_step.get("subagent_name")
             or raw_step.get("agent")
         )
+        tool_name = raw_step.get("tool") or raw_step.get("tool_name")
+
+        # Нормализация вида "explainer:generate_report"
+        if subagent_name and ":" in str(subagent_name):
+            parts = str(subagent_name).split(":", 1)
+            subagent_name = parts[0]
+            if not tool_name and len(parts) > 1:
+                tool_name = parts[1]
 
         description = (
             raw_step.get("description")
@@ -339,8 +387,8 @@ class ResearchPlannerSubagent(BaseSubagent):
             "subagent_name": str(subagent_name).strip() if subagent_name else None,
             "description": str(description).strip(),
             "required": bool(raw_step.get("required", True)),
-            "tool": raw_step.get("tool") or raw_step.get("tool_name"),
-            "tool_name": raw_step.get("tool") or raw_step.get("tool_name"),
+            "tool": tool_name,
+            "tool_name": tool_name,
             "args": args,
             "depends_on": depends_on,
             "timeout_seconds": raw_step.get("timeout_seconds") or raw_step.get("timeout"),
@@ -376,6 +424,32 @@ class ResearchPlannerSubagent(BaseSubagent):
             return False
 
         return True
+
+    async def _repair_plan(self, raw_response: str, error_msg: str) -> str:
+        """
+        Попробовать запросить у LLM исправленную версию плана с учётом ошибки.
+        """
+        repair_prompt = (
+            "Предыдущий ответ не соответствует требованиям JSON плана.\n"
+            f"Ошибка: {error_msg}\n"
+            "Верни только валидный JSON по той же задаче (поля reasoning и steps).\n"
+            "Не добавляй текст вне JSON."
+        )
+        return await self.llm_client.generate(
+            system_prompt="Исправь план в валидный JSON.",
+            user_prompt=(
+                repair_prompt
+                + "\n\nТребуемая схема:\n"
+                + str(self.PLAN_JSON_SCHEMA)
+                + "\n\nПример валидного ответа:\n"
+                '{"reasoning":"...","steps":[{"subagent":"market_data","tool":"get_ohlcv_timeseries","args":{"ticker":"SBER","from_date":"2024-11-01","to_date":"2024-12-01"},"depends_on":[],"required":true}]}\n'
+                "\nОригинальный ответ:\n"
+                + raw_response
+            ),
+            temperature=0.0,
+            max_tokens=600,
+            response_format={"type": "json_object"},
+        )
 
     def _extract_json(self, raw_response: str) -> dict[str, Any]:
         """Извлечь JSON из ответа (учитывая возможные Markdown-кодовые блоки)."""

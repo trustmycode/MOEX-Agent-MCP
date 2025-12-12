@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_API_BASE = "https://foundation-models.api.cloud.ru/v1"
 DEFAULT_MODEL_MAIN = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 DEFAULT_MODEL_FALLBACK = "openai/gpt-oss-120b"
-DEFAULT_MODEL_DEV = "openai/gpt-oss-120b"
+DEFAULT_MODEL_DEV = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 
 
 class EvolutionLLMClient:
@@ -74,6 +74,7 @@ class EvolutionLLMClient:
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 2000,
+        response_format: Optional[dict] = None,
     ) -> str:
         """
         Сгенерировать текст с учётом системного и пользовательского промптов.
@@ -93,6 +94,7 @@ class EvolutionLLMClient:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    response_format=response_format,
                 )
             except Exception as exc:
                 last_error = exc
@@ -114,6 +116,7 @@ class EvolutionLLMClient:
         messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
+        response_format: Optional[dict],
     ) -> str:
         """Вызвать конкретную модель с ретраем и backoff."""
         last_error: Optional[Exception] = None
@@ -125,6 +128,7 @@ class EvolutionLLMClient:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    response_format=response_format,
                     timeout=self.request_timeout,
                 )
 

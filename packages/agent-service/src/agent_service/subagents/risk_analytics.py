@@ -665,7 +665,7 @@ class RiskAnalyticsSubagent(BaseSubagent):
 
     async def _compute_tail_metrics_planned(self, args: dict[str, Any], context: AgentContext) -> SubagentResult:
         """
-        Посчитать метрики хвоста индекса через MCP; при недоступности MCP — fallback на локальный расчёт.
+        Посчитать метрики хвоста индекса через MCP.
         """
         market_data = context.get_result("market_data", {})
         ohlcv = args.get("ohlcv") or market_data.get("tail_ohlcv")
@@ -674,7 +674,6 @@ class RiskAnalyticsSubagent(BaseSubagent):
         if not ohlcv:
             return SubagentResult.create_error(error="Нет OHLCV для хвоста индекса")
 
-        # Попытка через MCP
         try:
             mcp_args = {"ohlcv": ohlcv, "constituents": constituents}
             result = await self.compute_tail_metrics(mcp_args)  # type: ignore[attr-defined]
@@ -683,105 +682,9 @@ class RiskAnalyticsSubagent(BaseSubagent):
                 return SubagentResult.success(data=data, next_agent_hint="explainer")
             if result.error:
                 return SubagentResult.create_error(error=result.error.message if result.error else "Ошибка compute_tail_metrics")
-        except Exception:
-            logger.warning("compute_tail_metrics MCP недоступен, используем локальный fallback", exc_info=True)
-
-        # Fallback на локальную математику
-        fallback = self._compute_tail_metrics_local(ohlcv, constituents)
-        if fallback["errors"]:
-            return SubagentResult.partial(
-                data=fallback["data"],
-                error="; ".join(fallback["errors"]),
-                next_agent_hint="explainer",
-            )
-        return SubagentResult.success(data=fallback["data"], next_agent_hint="explainer")
-
-    def _compute_tail_metrics_local(self, ohlcv: dict[str, Any], constituents: list[Any]) -> dict[str, Any]:
-        weight_map: dict[str, Optional[float]] = {}
-        if constituents and isinstance(constituents, list):
-            for c in constituents:
-                if isinstance(c, dict) and c.get("ticker") is not None:
-                    weight_pct = c.get("weight_pct")
-                    weight_map[c.get("ticker")] = weight_pct
-
-        per_instrument: list[dict[str, Any]] = []
-        errors: list[str] = []
-
-        for ticker, series in ohlcv.items():
-            try:
-                metrics = self._compute_basic_metrics_from_ohlcv_local(series)
-            except Exception as exc:  # pragma: no cover
-                errors.append(f"{ticker}: {type(exc).__name__}")
-                continue
-
-            weight_pct = weight_map.get(ticker)
-            weight_fraction = (float(weight_pct) / 100.0) if weight_pct is not None else None
-
-            per_instrument.append(
-                {
-                    "ticker": ticker,
-                    "weight": weight_fraction,
-                    "total_return_pct": metrics.get("return_pct"),
-                    "annualized_volatility_pct": metrics.get("ann_vol_pct"),
-                    "max_drawdown_pct": metrics.get("max_dd_pct"),
-                }
-            )
-
-        data = {"per_instrument": per_instrument, "scenario": "index_tail_analysis"}
-        return {"data": data, "errors": errors}
-
-    def _compute_basic_metrics_from_ohlcv_local(self, series: Any) -> dict[str, float]:
-        """
-        Рассчитать месячную доходность, годовую волатильность и max drawdown из OHLCV (fallback).
-        """
-        if not series or not isinstance(series, list):
-            raise ValueError("Пустая серия OHLCV")
-
-        closes: list[float] = []
-        for bar in series:
-            if isinstance(bar, dict):
-                close_val = bar.get("close") or bar.get("Close") or bar.get("CLOSE")
-                if close_val is not None:
-                    try:
-                        closes.append(float(close_val))
-                    except Exception:
-                        continue
-
-        if len(closes) < 2:
-            raise ValueError("Недостаточно точек OHLCV")
-
-        first, last = closes[0], closes[-1]
-        return_pct = (last / first - 1.0) * 100 if first else 0.0
-
-        returns = []
-        for i in range(1, len(closes)):
-            prev = closes[i - 1]
-            curr = closes[i]
-            if prev:
-                returns.append((curr / prev - 1.0))
-        if returns:
-            mean = sum(returns) / len(returns)
-            var = sum((r - mean) ** 2 for r in returns) / len(returns)
-            import math
-
-            ann_vol_pct = (var ** 0.5) * (math.sqrt(252)) * 100
-        else:
-            ann_vol_pct = 0.0
-
-        peak = closes[0]
-        max_dd = 0.0
-        for price in closes:
-            if price > peak:
-                peak = price
-            dd = (price / peak - 1.0) * 100
-            if dd < max_dd:
-                max_dd = dd
-
-        return {
-            "return_pct": return_pct,
-            "ann_vol_pct": ann_vol_pct,
-            "max_dd_pct": max_dd,
-        }
+        except Exception as exc:  # pragma: no cover - защита
+            logger.exception("compute_tail_metrics MCP failed: %s", exc)
+            return SubagentResult.create_error(error=f"Ошибка compute_tail_metrics: {type(exc).__name__}: {exc}")
 
     # --- MCP Tool Wrappers ---
 

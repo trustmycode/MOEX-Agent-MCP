@@ -112,10 +112,11 @@ class ExplainerSubagent(BaseSubagent):
             name="explainer",
             description="Генерирует текстовый отчёт для CFO/риск-менеджера через LLM",
             capabilities=[
-                "generate_portfolio_report",
+                # "generate_portfolio_report",
                 "explain_risk_metrics",
                 "adapt_to_user_role",
                 "generate_recommendations",
+                "generate_report",
             ],
         )
         self.llm_client: LLMClient = llm_client or MockLLMClient()
@@ -204,7 +205,7 @@ class ExplainerSubagent(BaseSubagent):
             report_text = await self.llm_client.generate(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.3,  # Низкая температура для точности (см. тесты)
+                temperature=0.3,
                 max_tokens=2000,
             )
 

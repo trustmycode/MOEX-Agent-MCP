@@ -265,6 +265,16 @@ function ChatPageInner() {
     [input, reset, streamRun],
   );
 
+  const handleTextareaKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        void handleSend();
+      }
+    },
+    [handleSend],
+  );
+
   return (
     <main className="min-h-screen bg-background p-6 lg:p-10">
       <div className="mb-6 space-y-2">
@@ -299,6 +309,7 @@ function ChatPageInner() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={runStatus === "running"}
+              onKeyDown={handleTextareaKeyDown}
             />
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">Thread ID: {threadIdRef.current}</p>
