@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "last_price": {
+            "type": "number"
+          },
+          "price_change_pct": {
+            "type": "number"
+          },
+          "sector": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "weight_pct": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ticker",
+          "weight_pct"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "error": {
+      "additionalProperties": true,
+      "properties": {
+        "details": {},
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "message"
+      ],
+      "type": [
+        "null",
+        "object"
+      ]
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "index_ticker": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "moex-iss"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "index_ticker",
+        "as_of_date"
+      ],
+      "type": "object"
+    },
+    "metrics": {
+      "additionalProperties": true,
+      "properties": {
+        "num_constituents": {
+          "type": "integer"
+        },
+        "top5_weight_pct": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "type": [
+        "null",
+        "object"
+      ]
+    }
+  },
+  "required": [
+    "metadata",
+    "data"
+  ],
+  "title": "GetIndexConstituentsMetricsOutput",
+  "type": "object"
+}

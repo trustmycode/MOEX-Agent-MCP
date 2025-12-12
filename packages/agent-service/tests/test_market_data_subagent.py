@@ -417,3 +417,4 @@ class TestMarketDataSubagentErrorHandling:
         assert result.is_partial
         assert result.data["snapshot"] is not None
         assert result.data["ohlcv"] is None
+

@@ -238,3 +238,4 @@ class TestScenarioDescription:
             description = classifier.get_scenario_description(scenario)
             assert description, f"No description for {scenario}"
             assert len(description) > 10
+

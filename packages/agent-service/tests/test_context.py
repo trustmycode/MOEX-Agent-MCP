@@ -169,3 +169,4 @@ class TestAgentContextSerialization:
         assert ctx.user_query == "test query"
         assert ctx.session_id == "sid-456"
         assert ctx.user_role == "CFO"
+

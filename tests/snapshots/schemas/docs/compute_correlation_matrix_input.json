@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Input for risk-analytics-mcp.compute_correlation_matrix.",
+  "properties": {
+    "from_date": {
+      "description": "Start date, inclusive (YYYY-MM-DD).",
+      "format": "date",
+      "type": "string"
+    },
+    "tickers": {
+      "description": "List of tickers for correlation calculation (unique, uppercased).",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 2,
+      "type": "array"
+    },
+    "to_date": {
+      "description": "End date, inclusive (YYYY-MM-DD). Must be >= from_date.",
+      "format": "date",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tickers",
+    "from_date",
+    "to_date"
+  ],
+  "title": "ComputeCorrelationMatrixInput",
+  "type": "object"
+}

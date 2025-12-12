@@ -1,16 +1,28 @@
 'use client';
 
-import {
-  AssistantMessage as DefaultAssistantMessage,
-  ImageRenderer as DefaultImageRenderer,
-  UserMessage as DefaultUserMessage,
-} from '@copilotkit/react-ui';
-import type { RenderMessageProps } from '@copilotkit/react-ui';
-import type { AIMessage, Message, UserMessage as UserMessageType } from '@copilotkit/shared';
 import { useEffect, useMemo } from 'react';
 import { RiskCockpit } from './RiskCockpit';
 import type { RiskDashboardSpec } from './types';
 import { useRiskDashboard } from './DashboardContext';
+
+type MessageRole = 'user' | 'assistant' | 'system';
+
+type MinimalMessage = {
+  id?: string;
+  role: MessageRole;
+  content?: unknown;
+  generativeUI?: () => React.ReactNode;
+};
+
+export type RenderMessageProps = {
+  message: MinimalMessage;
+  messages?: MinimalMessage[];
+  inProgress?: boolean;
+  index?: number;
+  isCurrentMessage?: boolean;
+  onRegenerate?: (id?: string) => void;
+  onCopy?: () => void;
+};
 
 type DashboardEnvelope = {
   type?: string;
@@ -21,11 +33,7 @@ type DashboardEnvelope = {
   text?: string;
 };
 
-type DashboardCapableMessage = Message & {
-  id?: string;
-  content?: unknown;
-  generativeUI?: () => React.ReactNode;
-};
+type DashboardCapableMessage = MinimalMessage;
 
 function parseDashboardEnvelope(content: unknown): DashboardEnvelope | null {
   if (typeof content !== 'string') return null;
@@ -41,22 +49,7 @@ function parseDashboardEnvelope(content: unknown): DashboardEnvelope | null {
 }
 
 export function DashboardRenderMessage(props: RenderMessageProps) {
-  const {
-    message,
-    messages,
-    inProgress,
-    index,
-    isCurrentMessage,
-    onRegenerate,
-    onCopy,
-    onThumbsUp,
-    onThumbsDown,
-    messageFeedback,
-    markdownTagRenderers,
-    AssistantMessage = DefaultAssistantMessage,
-    UserMessage = DefaultUserMessage,
-    ImageRenderer = DefaultImageRenderer,
-  } = props;
+  const { message, index, onRegenerate, onCopy } = props;
 
   const { applyDashboard } = useRiskDashboard();
   const typedMessage = message as DashboardCapableMessage;
@@ -90,60 +83,57 @@ export function DashboardRenderMessage(props: RenderMessageProps) {
     };
 
     return (
-      <AssistantMessage
+      <div
         key={index}
-        data-message-role="assistant"
-        subComponent={messageWithUI.generativeUI?.()}
-        rawData={messageWithUI}
-        message={messageWithUI as AIMessage}
-        messages={messages}
-        isLoading={inProgress && isCurrentMessage && !typedMessage.content}
-        isGenerating={inProgress && isCurrentMessage && !!typedMessage.content}
-        isCurrentMessage={isCurrentMessage}
-        onRegenerate={() => onRegenerate?.(messageId)}
-        onCopy={onCopy}
-        onThumbsUp={onThumbsUp}
-        onThumbsDown={onThumbsDown}
-        feedback={messageFeedback?.[messageId] || null}
-        markdownTagRenderers={markdownTagRenderers}
-        ImageRenderer={ImageRenderer}
-      />
+        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-slate-100 shadow"
+      >
+        <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">assistant</p>
+        <p className="whitespace-pre-wrap text-sm">{messageWithUI.content}</p>
+        {messageWithUI.generativeUI?.()}
+      </div>
     );
   }
 
   switch (typedMessage.role) {
     case 'user':
       return (
-        <UserMessage
+        <div
           key={index}
-          rawData={typedMessage}
-          data-message-role="user"
-          message={typedMessage as UserMessageType}
-          ImageRenderer={ImageRenderer}
-        />
+          className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-slate-100 shadow"
+        >
+          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">user</p>
+          <p className="whitespace-pre-wrap text-sm">{String(typedMessage.content ?? '')}</p>
+          {onCopy && (
+            <button
+              onClick={onCopy}
+              className="mt-2 rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:border-slate-500"
+            >
+              Копировать
+            </button>
+          )}
+        </div>
       );
     case 'assistant':
       return (
-        <AssistantMessage
+        <div
           key={index}
-          data-message-role="assistant"
-          subComponent={typedMessage.generativeUI?.()}
-          rawData={typedMessage}
-          message={typedMessage as AIMessage}
-          messages={messages}
-          isLoading={inProgress && isCurrentMessage && !typedMessage.content}
-          isGenerating={inProgress && isCurrentMessage && !!typedMessage.content}
-          isCurrentMessage={isCurrentMessage}
-          onRegenerate={() => onRegenerate?.(messageId)}
-          onCopy={onCopy}
-          onThumbsUp={onThumbsUp}
-          onThumbsDown={onThumbsDown}
-          feedback={messageFeedback?.[messageId] || null}
-          markdownTagRenderers={markdownTagRenderers}
-          ImageRenderer={ImageRenderer}
-        />
+          className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-slate-100 shadow"
+        >
+          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">assistant</p>
+          <p className="whitespace-pre-wrap text-sm">{String(typedMessage.content ?? '')}</p>
+          {typedMessage.generativeUI?.()}
+          {onRegenerate && (
+            <button
+              onClick={() => onRegenerate(messageId)}
+              className="mt-2 rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:border-slate-500"
+            >
+              Перегенерировать
+            </button>
+          )}
+        </div>
       );
     default:
       return null;
   }
 }
+

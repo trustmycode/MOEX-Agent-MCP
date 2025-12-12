@@ -233,3 +233,4 @@ def get_registry() -> SubagentRegistry:
         Глобальный экземпляр SubagentRegistry.
     """
     return default_registry
+

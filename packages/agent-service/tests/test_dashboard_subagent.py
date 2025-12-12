@@ -111,6 +111,21 @@ def context_without_data() -> AgentContext:
     )
 
 
+def _get_dashboard(result: SubagentResult) -> RiskDashboardSpec:
+    """
+    Унифицировано извлечь дашборд из SubagentResult.
+    Поддерживает оба контракта: словарь с ключом 'dashboard' и прямой RiskDashboardSpec.
+    """
+    data = result.data
+    if isinstance(data, RiskDashboardSpec):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("dashboard"), RiskDashboardSpec):
+        return data["dashboard"]
+    if isinstance(data, dict) and "dashboard" in data:
+        return data["dashboard"]  # type: ignore[return-value]
+    raise AssertionError("Dashboard not found in result.data")
+
+
 class TestDashboardSubagentBasic:
     """Базовые тесты DashboardSubagent."""
 
@@ -132,11 +147,9 @@ class TestDashboardSubagentBasic:
         result = await dashboard_subagent.execute(context_with_risk_data)
 
         assert result.status == "success"
-        assert result.data is not None
-        assert "dashboard" in result.data
         assert result.next_agent_hint == "explainer"
 
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
         assert isinstance(dashboard, RiskDashboardSpec)
 
     @pytest.mark.asyncio
@@ -149,10 +162,9 @@ class TestDashboardSubagentBasic:
         result = await dashboard_subagent.execute(context_without_data)
 
         assert result.status == "partial"
-        assert "dashboard" in result.data
         assert "недоступны" in result.error_message.lower()
 
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
         # Должен быть алерт о недоступности данных
         assert len(dashboard.alerts) > 0
         assert any(a.id == "no_data" for a in dashboard.alerts)
@@ -169,7 +181,7 @@ class TestDashboardMetricCards:
     ):
         """Проверить создание карточек метрик портфеля."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Проверяем наличие основных метрик
         metric_ids = [m.id for m in dashboard.metric_cards]
@@ -186,7 +198,7 @@ class TestDashboardMetricCards:
     ):
         """Проверить создание карточек концентрации."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         metric_ids = [m.id for m in dashboard.metric_cards]
 
@@ -201,7 +213,7 @@ class TestDashboardMetricCards:
     ):
         """Проверить создание карточки VaR."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         var_card = next(
             (m for m in dashboard.metric_cards if m.id == "portfolio_var_light"),
@@ -220,7 +232,7 @@ class TestDashboardMetricCards:
     ):
         """Проверить корректное назначение severity для метрик."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Концентрация 18.5% > 15% порога — должен быть high
         top1_card = next(
@@ -246,7 +258,7 @@ class TestDashboardTables:
     ):
         """Проверить создание таблицы позиций."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         positions_table = next(
             (t for t in dashboard.tables if t.id == "positions"), None
@@ -270,7 +282,7 @@ class TestDashboardTables:
     ):
         """Проверить создание таблицы стресс-сценариев."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         stress_table = next(
             (t for t in dashboard.tables if t.id == "stress_results"), None
@@ -292,7 +304,7 @@ class TestDashboardAlerts:
     ):
         """Проверить генерацию алерта по концентрации."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Концентрация 18.5% > 15% — должен быть warning алерт
         concentration_alerts = [
@@ -312,7 +324,7 @@ class TestDashboardAlerts:
     ):
         """Проверить генерацию алерта по VaR."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         var_alerts = [a for a in dashboard.alerts if "var" in a.id]
         assert len(var_alerts) > 0
@@ -329,7 +341,7 @@ class TestDashboardAlerts:
     ):
         """Проверить генерацию алертов по стресс-сценариям."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Потери > 15% в стресс-сценарии должны генерировать алерт
         stress_alerts = [a for a in dashboard.alerts if "stress" in a.id]
@@ -356,7 +368,7 @@ class TestDashboardAlerts:
         )
 
         result = await dashboard_subagent.execute(context)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         critical_alerts = [
             a for a in dashboard.alerts if a.severity == AlertSeverity.CRITICAL
@@ -376,7 +388,7 @@ class TestDashboardMetadata:
     ):
         """Проверить заполнение метаданных из контекста."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         assert dashboard.metadata.scenario_type == "portfolio_risk_basic"
         assert dashboard.metadata.base_currency == "RUB"
@@ -390,7 +402,7 @@ class TestDashboardMetadata:
     ):
         """Проверить парсинг as_of из данных."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # as_of должен быть распарсен из "2025-12-11T10:00:00Z"
         assert isinstance(dashboard.metadata.as_of, datetime)
@@ -407,7 +419,7 @@ class TestDashboardCharts:
     ):
         """Проверить создание графика весов."""
         result = await dashboard_subagent.execute(context_with_risk_data)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         weights_chart = next(
             (c for c in dashboard.charts if c.id == "weights_by_ticker"), None
@@ -438,7 +450,7 @@ class TestDashboardEdgeCases:
         )
 
         result = await dashboard_subagent.execute(context)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Таблица позиций не должна создаваться
         positions_table = next(
@@ -464,8 +476,9 @@ class TestDashboardEdgeCases:
         )
 
         result = await dashboard_subagent.execute(context)
-        dashboard = result.data["dashboard"]
+        dashboard = _get_dashboard(result)
 
         # Должна быть только карточка доходности
         assert len(dashboard.metric_cards) == 1
         assert dashboard.metric_cards[0].id == "portfolio_total_return_pct"
+

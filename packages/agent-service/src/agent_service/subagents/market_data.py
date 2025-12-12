@@ -242,15 +242,33 @@ class MarketDataSubagent(BaseSubagent):
                 to_date=to_date,
             )
 
+            snapshot_payload = snapshot.data if snapshot.success else None
+            ohlcv_payload = ohlcv.data if ohlcv.success else None
+
+            # Нормализуем snapshot в плоский dict, чтобы Explainer построил таблицу
+            normalized_snapshot = self._normalize_snapshot(snapshot_payload)
+
+            # Если данные пустые, считаем как ошибку для явности
+            if snapshot.success and not snapshot_payload:
+                errors.append(f"{ticker}: snapshot empty")
+            if ohlcv.success and not ohlcv_payload:
+                errors.append(f"{ticker}: ohlcv empty")
+
             results[ticker] = {
-                "snapshot": snapshot.data if snapshot.success else None,
-                "ohlcv": ohlcv.data if ohlcv.success else None,
+                "snapshot": normalized_snapshot or snapshot_payload,
+                "ohlcv": ohlcv_payload,
             }
 
             if not snapshot.success:
                 errors.append(
                     f"{ticker}: {snapshot.error.message if snapshot.error else 'snapshot error'}"
                 )
+            if not ohlcv.success:
+                errors.append(
+                    f"{ticker}: {ohlcv.error.message if ohlcv.error else 'ohlcv error'}"
+                )
+            if (not snapshot_payload) and (not ohlcv_payload):
+                errors.append(f"{ticker}: данные недоступны")
 
         data = {
             "tickers": tickers,
@@ -556,3 +574,32 @@ class MarketDataSubagent(BaseSubagent):
     def _default_to_date(self) -> str:
         """Получить дату окончания по умолчанию (сегодня)."""
         return date.today().isoformat()
+
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+    def _normalize_snapshot(self, snapshot_payload: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        """
+        Привести snapshot MCP к плоскому виду, который ожидает Explainer/таблицы.
+        """
+        if not snapshot_payload or not isinstance(snapshot_payload, dict):
+            return None
+
+        # Возможные формы: {"structuredContent": {"data": {...}}} или сразу плоский dict
+        data = snapshot_payload
+        if "structuredContent" in snapshot_payload:
+            sc = snapshot_payload.get("structuredContent") or {}
+            data = sc.get("data") or sc
+
+        # Метаданные (as_of) могут лежать в metadata или _meta
+        meta = snapshot_payload.get("_meta") or {}
+        sc_meta = snapshot_payload.get("structuredContent", {}).get("metadata", {})
+        as_of = meta.get("as_of") or sc_meta.get("as_of")
+
+        return {
+            "last_price": data.get("last_price"),
+            "price_change_pct": data.get("price_change_pct"),
+            "value": data.get("value"),
+            "intraday_volatility_estimate": data.get("intraday_volatility_estimate"),
+            "as_of": as_of,
+        }

@@ -547,3 +547,4 @@ class TestRiskAnalyticsSubagentErrorHandling:
 
         assert result.is_error
         assert "RuntimeError" in result.error_message
+

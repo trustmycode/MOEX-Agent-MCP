@@ -359,3 +359,4 @@ class TestInputValidation:
                     "fixed_income": 0.50,  # Сумма = 1.2 > 1.0
                 }
             )
+

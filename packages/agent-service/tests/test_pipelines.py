@@ -203,3 +203,4 @@ class TestPipelineSummary:
             assert len(summary) > 0
             # Хотя бы один шаг
             assert any(name in summary for name in ["market_data", "explainer", "risk_analytics"])
+

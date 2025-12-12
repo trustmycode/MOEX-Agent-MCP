@@ -30,6 +30,7 @@ dist/
 *.egg
 pip-wheel-metadata/
 uv.lock
+.docker-cache/
 
 # Logs / local data
 *.log

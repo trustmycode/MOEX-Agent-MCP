@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "additionalProperties": true,
+      "properties": {
+        "high_price": {
+          "type": "number"
+        },
+        "last_price": {
+          "type": "number"
+        },
+        "low_price": {
+          "type": "number"
+        },
+        "open_price": {
+          "type": "number"
+        },
+        "price_change_abs": {
+          "type": "number"
+        },
+        "price_change_pct": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        },
+        "volume": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "last_price",
+        "price_change_abs",
+        "price_change_pct"
+      ],
+      "type": "object"
+    },
+    "error": {
+      "additionalProperties": true,
+      "properties": {
+        "details": {},
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "message"
+      ],
+      "type": [
+        "null",
+        "object"
+      ]
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "board": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "moex-iss"
+          ],
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "ticker",
+        "board",
+        "as_of"
+      ],
+      "type": "object"
+    },
+    "metrics": {
+      "additionalProperties": true,
+      "properties": {
+        "intraday_volatility_estimate": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "type": [
+        "null",
+        "object"
+      ]
+    }
+  },
+  "required": [
+    "metadata",
+    "data"
+  ],
+  "title": "GetSecuritySnapshotOutput",
+  "type": "object"
+}

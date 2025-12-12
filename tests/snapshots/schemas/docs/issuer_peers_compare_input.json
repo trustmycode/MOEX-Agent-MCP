@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "_validation_notes": "At least one of ticker/isin/issuer_id must be provided (validated at Pydantic level).",
+  "additionalProperties": false,
+  "description": "Input schema for risk-analytics-mcp.issuer_peers_compare tool. Compares an issuer against peers using key fundamental and market metrics.",
+  "properties": {
+    "as_of_date": {
+      "description": "Date for data snapshot in ISO format (YYYY-MM-DD). Defaults to today.",
+      "format": "date",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "index_ticker": {
+      "default": "IMOEX",
+      "description": "Index used to pick peers (e.g. 'IMOEX', 'RTSI'). Ignored if peer_tickers is provided.",
+      "maxLength": 16,
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "isin": {
+      "description": "ISIN identifier (used if ticker is not provided).",
+      "maxLength": 20,
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "issuer_id": {
+      "description": "MOEX issuer id (optional, used if ticker/ISIN not available).",
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "max_peers": {
+      "default": 10,
+      "description": "Maximum number of peers to include in the report.",
+      "maximum": 100,
+      "minimum": 1,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "peer_tickers": {
+      "description": "Explicit list of peer tickers (overrides index-based lookup).",
+      "items": {
+        "maxLength": 32,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "sector": {
+      "description": "Optional sector filter to narrow peer selection (e.g. 'FINANCIALS').",
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ticker": {
+      "description": "Target issuer ticker (preferred identifier), e.g. 'SBER'.",
+      "maxLength": 32,
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "IssuerPeersCompareInput",
+  "type": "object"
+}

@@ -255,3 +255,4 @@ class TestSubagentRegistryRepr:
         
         assert "SubagentRegistry" in repr_str
         assert "market_data" in repr_str
+

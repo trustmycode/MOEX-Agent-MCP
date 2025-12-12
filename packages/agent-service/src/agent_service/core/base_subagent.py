@@ -168,3 +168,4 @@ class BaseSubagent(ABC):
     def __str__(self) -> str:
         """Краткое строковое представление."""
         return f"{self.__class__.__name__}({self.name!r})"
+

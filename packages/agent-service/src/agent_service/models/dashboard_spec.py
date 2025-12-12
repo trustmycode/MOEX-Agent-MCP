@@ -23,6 +23,7 @@ class MetricSeverity(str, Enum):
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
+    WARNING = "warning"
     HIGH = "high"
     CRITICAL = "critical"
 
@@ -75,6 +76,25 @@ class MetricCard(BaseModel):
         default=None, description="Изменение за период (например, '+5.2%')"
     )
     status: MetricSeverity = Field(
+        default=MetricSeverity.INFO,
+        description="Уровень важности/риска",
+    )
+
+
+class Metric(BaseModel):
+    """
+    Числовая метрика для layout-визуализации (v1 контракт).
+
+    Используется фронтендом для рендеринга KPI-гридов без дополнительных
+    преобразований строк.
+    """
+
+    id: str = Field(..., description="Машинно-читаемый идентификатор метрики")
+    label: str = Field(..., description="Название метрики")
+    value: float = Field(..., description="Числовое значение метрики")
+    unit: Optional[str] = Field(default=None, description="Единица измерения")
+    change: Optional[float] = Field(default=None, description="Изменение за период, %")
+    severity: MetricSeverity = Field(
         default=MetricSeverity.INFO,
         description="Уровень важности/риска",
     )
@@ -134,6 +154,45 @@ class TableSpec(BaseModel):
     )
     data_ref: Optional[str] = Field(
         default=None, description="Ссылка на источник данных"
+    )
+
+
+class WidgetType(str, Enum):
+    """Тип UI-виджета дашборда."""
+
+    KPI_GRID = "kpi_grid"
+    TABLE = "table"
+    CHART = "chart"
+    ALERT_LIST = "alert_list"
+    TEXT = "text"
+
+
+class LayoutItem(BaseModel):
+    """
+    Элемент layout-декларации для детерминированного рендера JSON → UI.
+    """
+
+    id: str = Field(..., description="Идентификатор элемента layout")
+    type: WidgetType = Field(..., description="Тип виджета")
+    title: Optional[str] = Field(default=None, description="Заголовок блока")
+    description: Optional[str] = Field(default=None, description="Описание блока")
+    metric_ids: list[str] = Field(
+        default_factory=list,
+        description="Список идентификаторов метрик для KPI-грида",
+    )
+    chart_id: Optional[str] = Field(default=None, description="ID графика для рендера")
+    table_id: Optional[str] = Field(default=None, description="ID таблицы для рендера")
+    alert_ids: list[str] = Field(
+        default_factory=list,
+        description="Список алертов для блока alert_list",
+    )
+    columns: Optional[int] = Field(
+        default=None,
+        description="Желаемое количество колонок в гриде",
+    )
+    options: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Дополнительные опции для виджета",
     )
 
 
@@ -310,9 +369,22 @@ class RiskDashboardSpec(BaseModel):
         }
     )
 
+    version: str = Field(
+        default="1.0",
+        description="Версия контракта RiskDashboardSpec (layout v1.0).",
+    )
     metadata: DashboardMetadata = Field(
         default_factory=DashboardMetadata,
         description="Метаданные дашборда",
+    )
+    # Новые поля v1: декларативные метрики и layout
+    metrics: list[Metric] = Field(
+        default_factory=list,
+        description="Структурированные метрики (KPI) для AG-UI layout",
+    )
+    layout: list[LayoutItem] = Field(
+        default_factory=list,
+        description="Декларация расположения виджетов для рендера",
     )
     metric_cards: list[MetricCard] = Field(
         default_factory=list,
@@ -329,6 +401,14 @@ class RiskDashboardSpec(BaseModel):
     alerts: list[Alert] = Field(
         default_factory=list,
         description="Список алертов/предупреждений",
+    )
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Сырые данные (tables/charts) для data_ref ссылок",
+    )
+    time_series: dict[str, list[dict[str, Any]]] = Field(
+        default_factory=dict,
+        description="Временные ряды для графиков",
     )
     raw_data: Optional[dict[str, Any]] = Field(
         default=None,
@@ -358,8 +438,10 @@ class RiskDashboardSpec(BaseModel):
         Returns:
             Созданная MetricCard.
         """
-        if isinstance(value, float):
-            formatted_value = f"{value:.2f}{unit}"
+        numeric_value: Optional[float] = None
+        if isinstance(value, (int, float)):
+            numeric_value = float(value)
+            formatted_value = f"{numeric_value:.2f}{unit}"
         else:
             formatted_value = f"{value}{unit}"
 
@@ -371,6 +453,25 @@ class RiskDashboardSpec(BaseModel):
             status=status,
         )
         self.metric_cards.append(card)
+
+        # Дублируем в metrics (v1 контракт) при наличии числового значения
+        if numeric_value is not None:
+            try:
+                numeric_change = float(change) if change is not None else None
+            except (TypeError, ValueError):
+                numeric_change = None
+
+            self.metrics.append(
+                Metric(
+                    id=id,
+                    label=title,
+                    value=numeric_value,
+                    unit=unit or None,
+                    change=numeric_change,
+                    severity=status,
+                )
+            )
+
         return card
 
     def add_alert(
@@ -431,3 +532,4 @@ class RiskDashboardSpec(BaseModel):
         )
         self.tables.append(table)
         return table
+

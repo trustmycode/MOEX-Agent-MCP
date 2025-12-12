@@ -520,7 +520,12 @@ sequenceDiagram
 
 ---
 
-## 7. Связанные документы
+## 7. Архитектурные тесты и контракты
+
+- `make test-architecture` — проверяет границы импортов (`moex_iss_sdk` не тянет `moex_iss_mcp`; `risk_analytics_mcp.calculations` не использует HTTP-клиенты) через import-linter.
+- `make test-schemas-snapshots` — freeze-тесты JSON-схем из `docs/schemas` и `apps/web/schemas` против снапшотов в `tests/snapshots/schemas`. При изменении схем обновляйте снапшоты осознанно.
+
+## 8. Связанные документы
 
 - `ARCHITECTURE_HIGH_LEVEL.md` — связи бизнес-сценариев 5/7/9 с JSON-схемами.
 - `ARCHITECTURE_LOW_LEVEL.md` — правила привязки low-level реализации к схемам.

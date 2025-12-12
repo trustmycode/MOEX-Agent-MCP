@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "close": {
+            "type": "number"
+          },
+          "high": {
+            "type": "number"
+          },
+          "low": {
+            "type": "number"
+          },
+          "open": {
+            "type": "number"
+          },
+          "ts": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "volume": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ts",
+          "open",
+          "high",
+          "low",
+          "close"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "error": {
+      "additionalProperties": true,
+      "properties": {
+        "details": {},
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "message"
+      ],
+      "type": [
+        "null",
+        "object"
+      ]
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "board": {
+          "type": "string"
+        },
+        "from_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "interval": {
+          "enum": [
+            "1d",
+            "1h"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "moex-iss"
+          ],
+          "type": "string"
+        },
+        "ticker": {
+          "type": "string"
+        },
+        "to_date": {
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "ticker",
+        "interval",
+        "from_date",
+        "to_date"
+      ],
+      "type": "object"
+    },
+    "metrics": {
+      "additionalProperties": true,
+      "properties": {
+        "annualized_volatility": {
+          "type": "number"
+        },
+        "avg_daily_volume": {
+          "type": "number"
+        },
+        "total_return_pct": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "type": [
+        "null",
+        "object"
+      ]
+    }
+  },
+  "required": [
+    "metadata",
+    "data"
+  ],
+  "title": "GetOhlcvTimeseriesOutput",
+  "type": "object"
+}

@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Input for risk-analytics-mcp.compute_portfolio_risk_basic.",
+  "properties": {
+    "aggregates": {
+      "additionalProperties": false,
+      "description": "Aggregated portfolio characteristics used for stress tests.",
+      "properties": {
+        "asset_class_weights": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Weights by asset class (equity, fixed_income, credit).",
+          "type": "object"
+        },
+        "base_currency": {
+          "maxLength": 8,
+          "minLength": 1,
+          "type": "string"
+        },
+        "credit_spread_duration_years": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fixed_income_duration_years": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fx_exposure_weights": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Currency weights for FX exposure.",
+          "type": "object"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "from_date": {
+      "description": "Start date, inclusive (YYYY-MM-DD).",
+      "format": "date",
+      "type": "string"
+    },
+    "positions": {
+      "description": "Portfolio positions with weights that must sum to ~1.0.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "board": {
+            "description": "MOEX board (optional).",
+            "maxLength": 16,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ticker": {
+            "description": "Ticker, e.g. SBER.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "weight": {
+            "description": "Weight of the instrument in the portfolio (0..1).",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "ticker",
+          "weight"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "rebalance": {
+      "default": "buy_and_hold",
+      "description": "Rebalancing policy: buy_and_hold (default) or monthly.",
+      "enum": [
+        "buy_and_hold",
+        "monthly"
+      ],
+      "type": "string"
+    },
+    "stress_scenarios": {
+      "description": "Optional explicit list of stress scenario ids to run.",
+      "items": {
+        "enum": [
+          "equity_-10_fx_+20",
+          "rates_+300bp",
+          "credit_spreads_+150bp"
+        ],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "to_date": {
+      "description": "End date, inclusive (YYYY-MM-DD). Must be >= from_date.",
+      "format": "date",
+      "type": "string"
+    },
+    "var_config": {
+      "additionalProperties": false,
+      "description": "Parameters for Var_light calculation.",
+      "properties": {
+        "confidence_level": {
+          "default": 0.95,
+          "maximum": 0.999,
+          "minimum": 0.8,
+          "type": "number"
+        },
+        "horizon_days": {
+          "default": 1,
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "method": {
+          "default": "parametric_normal",
+          "enum": [
+            "parametric_normal"
+          ],
+          "type": "string"
+        },
+        "reference_volatility_pct": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "positions",
+    "from_date",
+    "to_date"
+  ],
+  "title": "ComputePortfolioRiskBasicInput",
+  "type": "object"
+}

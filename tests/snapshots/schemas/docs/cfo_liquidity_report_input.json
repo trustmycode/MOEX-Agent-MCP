@@ -1,0 +1,194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Input schema for risk-analytics-mcp.build_cfo_liquidity_report tool. CFO-ориентированный отчёт по ликвидности и устойчивости портфеля.",
+  "properties": {
+    "aggregates": {
+      "description": "Агрегированные характеристики портфеля для стресс-сценариев.",
+      "properties": {
+        "asset_class_weights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "base_currency": {
+          "type": "string"
+        },
+        "credit_spread_duration_years": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fixed_income_duration_years": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fx_exposure_weights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "base_currency": {
+      "default": "RUB",
+      "description": "Базовая валюта отчёта.",
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+    },
+    "covenant_limits": {
+      "additionalProperties": false,
+      "description": "Опциональные лимиты ковенант для проверки.",
+      "properties": {
+        "max_net_debt_ebitda": {
+          "description": "Максимальный NetDebt/EBITDA.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_current_ratio": {
+          "description": "Минимальный коэффициент текущей ликвидности.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_liquidity_ratio": {
+          "description": "Минимальный коэффициент ликвидности (0-30d / 0-7d liabilities).",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "from_date": {
+      "description": "Начальная дата периода анализа (YYYY-MM-DD).",
+      "format": "date",
+      "type": "string"
+    },
+    "horizon_months": {
+      "default": 12,
+      "description": "Горизонт прогнозирования ликвидности (месяцы).",
+      "maximum": 36,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "positions": {
+      "description": "Позиции портфеля с весами и характеристиками ликвидности.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_class": {
+            "default": "equity",
+            "description": "Класс актива.",
+            "enum": [
+              "equity",
+              "fixed_income",
+              "cash",
+              "fx",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "board": {
+            "description": "MOEX board (optional).",
+            "maxLength": 16,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "default": "RUB",
+            "description": "Валюта позиции (ISO 4217).",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "liquidity_bucket": {
+            "default": "0-7d",
+            "description": "Корзина ликвидности — срок реализации актива.",
+            "enum": [
+              "0-7d",
+              "8-30d",
+              "31-90d",
+              "90d+"
+            ],
+            "type": "string"
+          },
+          "ticker": {
+            "description": "Ticker, e.g. SBER.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "weight": {
+            "description": "Вес инструмента в портфеле (0..1).",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "ticker",
+          "weight"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "stress_scenarios": {
+      "default": [
+        "base_case",
+        "equity_-10_fx_+20",
+        "rates_+300bp"
+      ],
+      "description": "Список идентификаторов стресс-сценариев. По умолчанию: base_case, equity_-10_fx_+20, rates_+300bp.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "to_date": {
+      "description": "Конечная дата периода анализа (YYYY-MM-DD).",
+      "format": "date",
+      "type": "string"
+    },
+    "total_portfolio_value": {
+      "description": "Общая стоимость портфеля (опционально).",
+      "exclusiveMinimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "positions",
+    "from_date",
+    "to_date"
+  ],
+  "title": "CfoLiquidityReportInput",
+  "type": "object"
+}

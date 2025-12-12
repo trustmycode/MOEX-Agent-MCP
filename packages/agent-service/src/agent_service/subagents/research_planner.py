@@ -147,6 +147,9 @@ class ResearchPlannerSubagent(BaseSubagent):
                     data={"raw_response": raw_response},
                 )
 
+            # Постобработка: удаляем дубли, добавляем финальный explainer и ограничиваем длину
+            plan.steps = self._finalize_steps(plan.steps)
+
             plan_dict = self._to_plan_dict(plan, raw_response)
             return SubagentResult.success(data=plan_dict)
 
@@ -286,4 +289,50 @@ class ResearchPlannerSubagent(BaseSubagent):
             },
             "raw_llm_response": raw_response,
         }
+
+    # ------------------------------------------------------------------ #
+    # Постобработка плана
+    # ------------------------------------------------------------------ #
+
+    def _finalize_steps(self, steps: list[PlannedStep]) -> list[PlannedStep]:
+        """
+        Удалить дубли, обеспечить финальный explainer и ограничить длину.
+        """
+        unique_steps: list[PlannedStep] = []
+        seen: set[str] = set()
+
+        for step in steps:
+            name = step.subagent_name
+            if name in seen:
+                continue
+            if name not in self.SUPPORTED_SUBAGENTS:
+                continue
+            seen.add(name)
+            unique_steps.append(step)
+
+            if len(unique_steps) >= self.MAX_STEPS:
+                break
+
+        # Добавляем explainer в конец, если его нет
+        if "explainer" not in seen:
+            if len(unique_steps) >= self.MAX_STEPS:
+                # Убираем последний не-required шаг, чтобы освободить место
+                for idx in range(len(unique_steps) - 1, -1, -1):
+                    if not unique_steps[idx].required:
+                        unique_steps.pop(idx)
+                        break
+                # Если все шаги обязательные, обрезаем список
+                if len(unique_steps) >= self.MAX_STEPS:
+                    unique_steps = unique_steps[: self.MAX_STEPS - 1]
+
+            unique_steps.append(
+                PlannedStep(
+                    subagent="explainer",
+                    description="Сформировать текстовый ответ",
+                    required=True,
+                )
+            )
+
+        return unique_steps[: self.MAX_STEPS]
+
 

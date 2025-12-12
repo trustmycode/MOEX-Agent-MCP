@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { CopilotKit } from "@copilotkit/react-core";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -16,8 +15,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "MOEX Market Analyst — Copilot UI",
-  description: "Веб-интерфейс на CopilotKit для MOEX market analyst agent",
+  title: "MOEX Market Analyst — Chat",
+  description: "Веб-интерфейс для MOEX market analyst agent (AG-UI stream)",
 };
 
 export default function RootLayout({
@@ -30,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
-        <CopilotKit runtimeUrl="/api/copilot">{children}</CopilotKit>
+        {children}
       </body>
     </html>
   );

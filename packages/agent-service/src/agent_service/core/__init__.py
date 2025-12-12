@@ -40,3 +40,4 @@ __all__ = [
     "default_registry",
     "get_registry",
 ]
+

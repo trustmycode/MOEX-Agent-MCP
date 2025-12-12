@@ -312,3 +312,4 @@ class TestMcpClient:
         error_type = client._classify_error(error)
 
         assert error_type == "RATE_LIMIT"
+

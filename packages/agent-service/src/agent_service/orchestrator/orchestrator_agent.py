@@ -795,7 +795,20 @@ class OrchestratorAgent:
             RiskDashboardSpec или None.
         """
         dashboard_result = context.get_result("dashboard")
-        if dashboard_result and isinstance(dashboard_result, dict):
+        if not dashboard_result:
+            return None
+
+        # Если сабагент вернул объект модели — сериализуем
+        if hasattr(dashboard_result, "model_dump"):
+            try:
+                return dashboard_result.model_dump()
+            except Exception:
+                pass
+
+        # Если вернулся словарь-обёртка { "dashboard": {...} }, разворачиваем
+        if isinstance(dashboard_result, dict):
+            if "dashboard" in dashboard_result and isinstance(dashboard_result["dashboard"], dict):
+                return dashboard_result["dashboard"]
             return dashboard_result
         return None
 

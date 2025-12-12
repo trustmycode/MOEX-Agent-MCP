@@ -147,8 +147,11 @@ class ExplainerSubagent(BaseSubagent):
             user_role = context.user_role or USER_ROLE_ANALYST
 
             # Проверяем наличие данных
-            if not risk_data and not market_data:
-                logger.warning("No data available for report generation")
+            has_risk = bool(risk_data)
+            has_market_numeric = self._has_market_numeric(market_data)
+            has_history = self._has_ohlcv(market_data)
+            if not has_risk and not has_market_numeric:
+                logger.warning("No numeric data available for report generation")
                 return SubagentResult.partial(
                     data={
                         "text": self._generate_no_data_report(context, locale)
@@ -156,14 +159,25 @@ class ExplainerSubagent(BaseSubagent):
                     error="Данные для отчёта недоступны",
                 )
 
+            if not has_history and not has_risk:
+                # Нет исторических данных — предупредим и вернём partial
+                context.add_error(
+                    "Исторические данные отсутствуют: расчёт доходностей/волатильности недоступен"
+                )
+                return SubagentResult.partial(
+                    data={"text": self._generate_no_data_report(context, locale)},
+                    error="Нет исторических данных, доступны только snapshot-показатели",
+                )
+
             # Формируем промпты
-            system_prompt = self._build_system_prompt(user_role, locale)
+            system_prompt = self._build_system_prompt(user_role, locale, has_history, has_risk)
             user_prompt = self._build_user_prompt(
                 context=context,
                 risk_data=risk_data,
                 market_data=market_data,
                 dashboard=dashboard,
                 locale=locale,
+                has_history=has_history,
             )
 
             # Генерируем текст через LLM
@@ -192,19 +206,27 @@ class ExplainerSubagent(BaseSubagent):
                 error=f"Ошибка генерации отчёта: {e}",
             )
 
-    def _build_system_prompt(self, user_role: str, locale: str) -> str:
+    def _build_system_prompt(self, user_role: str, locale: str, has_history: bool, has_risk: bool) -> str:
         """
         Построить системный промпт для LLM.
 
         Args:
             user_role: Роль пользователя (CFO, risk_manager, analyst).
             locale: Локаль (ru, en).
+            has_history: Есть ли исторические данные (OHLCV).
+            has_risk: Есть ли расчётные риск-метрики.
 
         Returns:
             Системный промпт с инструкциями для LLM.
         """
         role_instructions = self._get_role_instructions(user_role)
         language = "русском" if locale == "ru" else "English"
+
+        history_clause = (
+            "- Исторические данные ОТСУТСТВУЮТ: не выводи доходности/волатильность/корреляции, напиши 'данные недоступны'.\n"
+            if not has_history and not has_risk
+            else "- Исторические данные доступны: выводи метрики только из предоставленных данных.\n"
+        )
 
         return f"""Ты — финансовый аналитик, который помогает {role_instructions['audience']} 
 понять риски и характеристики инвестиционного портфеля.
@@ -219,6 +241,7 @@ class ExplainerSubagent(BaseSubagent):
 2. Если данные отсутствуют — напиши "данные недоступны", НЕ придумывай значения.
 3. Все проценты, значения VaR, волатильности берутся строго из входных данных.
 4. Не добавляй числа, которых нет в предоставленных метриках.
+5. {history_clause}
 
 ## Стиль отчёта для {role_instructions['role_name']}
 
@@ -294,6 +317,7 @@ class ExplainerSubagent(BaseSubagent):
         market_data: dict[str, Any],
         dashboard: dict[str, Any],
         locale: str,
+        has_history: bool,
     ) -> str:
         """
         Построить пользовательский промпт с данными.
@@ -316,6 +340,15 @@ class ExplainerSubagent(BaseSubagent):
         # Сценарий
         if context.scenario_type:
             sections.append(f"## Сценарий\n\n{context.scenario_type}")
+
+        # Ограничения по данным
+        if not has_history and not risk_data:
+            sections.append(
+                "## Ограничения данных\n\n"
+                "- Исторические данные отсутствуют (нет OHLCV)\n"
+                "- Запрещено выводить доходность, волатильность, корреляции, дивиденды\n"
+                "- Разрешено использовать только snapshot-показатели (last_price, оборот)\n"
+            )
 
         # Метрики портфеля
         if risk_data:
@@ -417,17 +450,81 @@ class ExplainerSubagent(BaseSubagent):
 
         # Обрабатываем различные форматы market_data
         if isinstance(market_data, dict):
-            for ticker, data in market_data.items():
+            payload = market_data.get("securities") if "securities" in market_data else market_data
+            if isinstance(payload, dict):
+                iterator = payload.items()
+            else:
+                iterator = []
+
+            for ticker, data in iterator:
                 if isinstance(data, dict):
+                    snap = data.get("snapshot") if "snapshot" in data else data
+                    ohlcv = data.get("ohlcv")
+                    if not isinstance(snap, dict):
+                        continue
                     lines.append(f"### {ticker}\n")
-                    if "last_price" in data:
-                        lines.append(f"- Последняя цена: **{data['last_price']}**")
-                    if "change_pct" in data:
-                        lines.append(f"- Изменение: **{data['change_pct']:.2f}%**")
-                    if "volume" in data:
-                        lines.append(f"- Объём: **{data['volume']:,}**")
+
+                    price = snap.get("last_price")
+                    change_pct = snap.get("price_change_pct") or snap.get("change_pct")
+                    value = snap.get("value")
+                    intraday_vol = snap.get("intraday_volatility_estimate")
+
+                    if price is not None:
+                        lines.append(f"- Последняя цена: **{price}**")
+                    if change_pct is not None:
+                        lines.append(f"- Изменение: **{change_pct:.2f}%**")
+                    if value is not None:
+                        lines.append(f"- Оборот: **{value:,.0f}**".replace(",", " "))
+                    if intraday_vol is not None:
+                        lines.append(f"- Интрадей волатильность: **{intraday_vol:.2f}**")
+
+                    if price is None and change_pct is None and value is None and intraday_vol is None:
+                        lines.append("- Данные недоступны")
+
+                    # Отметка об истории
+                    if ohlcv:
+                        lines.append("- Исторические данные: получены (OHLCV)")
+                    else:
+                        lines.append("- Исторические данные: недоступны")
 
         return "\n".join(lines) if len(lines) > 1 else ""
+
+    def _has_market_numeric(self, market_data: dict[str, Any]) -> bool:
+        """Проверить, есть ли числовые данные в market_data."""
+        if not market_data or not isinstance(market_data, dict):
+            return False
+
+        payload = market_data.get("securities", market_data)
+        if not isinstance(payload, dict):
+            return False
+
+        for data in payload.values():
+            if not isinstance(data, dict):
+                continue
+            snap = data.get("snapshot") if "snapshot" in data else data
+            if not isinstance(snap, dict):
+                continue
+            if any(
+                snap.get(key) is not None
+                for key in ("last_price", "price_change_pct", "change_pct", "value", "intraday_volatility_estimate")
+            ):
+                return True
+        return False
+
+    def _has_ohlcv(self, market_data: dict[str, Any]) -> bool:
+        """Проверить, есть ли исторические данные OHLCV."""
+        if not market_data or not isinstance(market_data, dict):
+            return False
+        payload = market_data.get("securities", market_data)
+        if not isinstance(payload, dict):
+            return False
+        for data in payload.values():
+            if not isinstance(data, dict):
+                continue
+            ohlcv = data.get("ohlcv")
+            if ohlcv:
+                return True
+        return False
 
     def _format_alerts(self, alerts: list[dict[str, Any]]) -> str:
         """Форматировать алерты для промпта."""

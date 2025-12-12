@@ -188,3 +188,4 @@ class TestSubagentResultSerialization:
         assert result.status == "success"
         assert result.data == {"key": "value"}
         assert result.next_agent_hint == "next"
+

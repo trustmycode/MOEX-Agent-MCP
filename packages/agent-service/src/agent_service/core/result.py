@@ -165,3 +165,4 @@ class SubagentResult(BaseModel):
     def has_data(self) -> bool:
         """Проверить, есть ли данные в результате."""
         return self.data is not None
+

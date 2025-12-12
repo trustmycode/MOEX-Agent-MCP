@@ -358,3 +358,4 @@ class IntentClassifier:
             ),
         }
         return descriptions.get(scenario_type, "Неизвестный сценарий")
+

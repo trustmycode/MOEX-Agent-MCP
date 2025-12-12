@@ -22,11 +22,13 @@ from ..models.dashboard_spec import (
     ChartSpec,
     ChartType,
     DashboardMetadata,
+    LayoutItem,
     MetricCard,
     MetricSeverity,
     RiskDashboardSpec,
     TableColumn,
     TableSpec,
+    WidgetType,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,7 +95,7 @@ class DashboardSubagent(BaseSubagent):
                 # Создаём пустой дашборд
                 dashboard = self._build_empty_dashboard(context)
                 return SubagentResult.partial(
-                    data={"dashboard": dashboard},
+                    data=dashboard,
                     error="Данные risk_analytics недоступны. Дашборд создан с ограничениями.",
                     next_agent_hint="explainer",
                 )
@@ -109,7 +111,7 @@ class DashboardSubagent(BaseSubagent):
             )
 
             return SubagentResult.success(
-                data={"dashboard": dashboard},
+                data=dashboard,
                 next_agent_hint="explainer",
             )
 
@@ -172,6 +174,15 @@ class DashboardSubagent(BaseSubagent):
 
         # 4. Генерируем алерты
         self._generate_alerts(dashboard, risk_data)
+
+        # 5. Собираем data/time_series для data_ref ссылок
+        dashboard.data = self._build_data_payload(risk_data)
+        dashboard.time_series = self._build_time_series(risk_data)
+        if dashboard.time_series:
+            dashboard.raw_data = {"time_series": dashboard.time_series}
+
+        # 6. Layout: декларативный список виджетов для AG-UI
+        dashboard.layout = self._build_layout(dashboard)
 
         return dashboard
 
@@ -411,7 +422,7 @@ class DashboardSubagent(BaseSubagent):
                         ChartSeries(
                             id="weights",
                             label="Вес бумаги",
-                            data_ref="tables.positions",
+                            data_ref="data.per_instrument",
                         )
                     ],
                 )
@@ -510,6 +521,104 @@ class DashboardSubagent(BaseSubagent):
                     related_ids=[f"stress:{stress.get('id')}"],
                 )
 
+    def _build_data_payload(self, risk_data: dict[str, Any]) -> dict[str, Any]:
+        """Сформировать словарь data/time_series для data_ref ссылок на фронте."""
+        data: dict[str, Any] = {}
+
+        per_instrument = risk_data.get("per_instrument") or []
+        normalized_instr: list[dict[str, Any]] = []
+        for instr in per_instrument:
+            if not isinstance(instr, dict):
+                continue
+            weight_pct = instr.get("weight_pct")
+            if weight_pct is None:
+                raw_weight = instr.get("weight")
+                weight_pct = float(raw_weight) * 100 if raw_weight is not None else None
+
+            normalized_instr.append(
+                {
+                    "ticker": instr.get("ticker"),
+                    "weight_pct": weight_pct,
+                    "total_return_pct": instr.get("total_return_pct"),
+                    "annualized_volatility_pct": instr.get("annualized_volatility_pct"),
+                    "max_drawdown_pct": instr.get("max_drawdown_pct"),
+                }
+            )
+
+        if normalized_instr:
+            data["per_instrument"] = normalized_instr
+
+        stress_results = risk_data.get("stress_results") or []
+        normalized_stress: list[dict[str, Any]] = []
+        for stress in stress_results:
+            if not isinstance(stress, dict):
+                continue
+            normalized_stress.append(
+                {
+                    "id": stress.get("id"),
+                    "description": stress.get("description"),
+                    "pnl_pct": stress.get("pnl_pct"),
+                }
+            )
+        if normalized_stress:
+            data["stress_results"] = normalized_stress
+
+        return data
+
+    def _build_time_series(self, risk_data: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+        """Извлечь временные ряды в безопасном формате."""
+        ts = risk_data.get("time_series")
+        if isinstance(ts, dict):
+            return {k: v for k, v in ts.items() if isinstance(v, list)}
+        return {}
+
+    def _build_layout(self, dashboard: RiskDashboardSpec) -> list[LayoutItem]:
+        """Построить декларативный layout для рендерера."""
+        layout: list[LayoutItem] = []
+
+        if dashboard.metrics:
+            layout.append(
+                LayoutItem(
+                    id="kpi_grid",
+                    type=WidgetType.KPI_GRID,
+                    title="Ключевые метрики",
+                    metric_ids=[metric.id for metric in dashboard.metrics],
+                    columns=3,
+                )
+            )
+
+        if dashboard.alerts:
+            layout.append(
+                LayoutItem(
+                    id="alerts",
+                    type=WidgetType.ALERT_LIST,
+                    title="Предупреждения",
+                    alert_ids=[alert.id for alert in dashboard.alerts],
+                )
+            )
+
+        for chart in dashboard.charts:
+            layout.append(
+                LayoutItem(
+                    id=f"chart_{chart.id}",
+                    type=WidgetType.CHART,
+                    title=chart.title,
+                    chart_id=chart.id,
+                )
+            )
+
+        for table in dashboard.tables:
+            layout.append(
+                LayoutItem(
+                    id=f"table_{table.id}",
+                    type=WidgetType.TABLE,
+                    title=table.title,
+                    table_id=table.id,
+                )
+            )
+
+        return layout
+
     def _get_concentration_severity(self, concentration_pct: float) -> MetricSeverity:
         """Определить severity для метрики концентрации."""
         if concentration_pct > CONCENTRATION_CRITICAL_THRESHOLD:
@@ -535,3 +644,4 @@ class DashboardSubagent(BaseSubagent):
                 top_ticker = instr.get("ticker", "Unknown")
 
         return top_ticker
+

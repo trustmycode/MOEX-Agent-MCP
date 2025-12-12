@@ -230,3 +230,4 @@ else
     echo -e "${RED}✗ Есть ошибки${NC}"
     exit 1
 fi
+

@@ -1,12 +1,18 @@
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_FILE ?= docker-compose.yml
-# Для сборки linux/amd64 на macOS без флага --platform (старые версии compose)
-DOCKER_DEFAULT_PLATFORM ?= linux/amd64
+
+# Включаем BuildKit и не форсим архитектуру: можно задать PLATFORM=linux/amd64 при необходимости
+export DOCKER_BUILDKIT ?= 1
+PLATFORM ?=
+
+# Тянуть свежие базы образов только по запросу: PULL=true make local-build
+PULL ?= false
+PULL_FLAG := $(if $(filter true,$(PULL)),--pull,)
 
 .PHONY: local-build local-up local-down local-logs
 
 local-build:
-	DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build --pull
+	DOCKER_DEFAULT_PLATFORM=$(PLATFORM) $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build $(PULL_FLAG)
 
 local-up:
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
@@ -16,3 +22,11 @@ local-down:
 
 local-logs:
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f
+
+.PHONY: test-architecture test-schemas-snapshots
+
+test-architecture:
+	PYTHONPATH=$(PWD) pytest tests/architecture
+
+test-schemas-snapshots:
+	PYTHONPATH=$(PWD) pytest tests/contracts/test_schema_snapshots.py

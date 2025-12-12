@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Output of risk-analytics-mcp.compute_correlation_matrix.",
+  "properties": {
+    "error": {
+      "additionalProperties": true,
+      "description": "Error details if the calculation failed.",
+      "properties": {
+        "details": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "message"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "matrix": {
+      "description": "Correlation matrix (rows align with tickers).",
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "Request metadata and calculation details.",
+      "properties": {
+        "from_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "iss_base_url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "num_observations": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tickers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to_date": {
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "tickers": {
+      "description": "Tickers in calculation order.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "tickers",
+    "matrix"
+  ],
+  "title": "ComputeCorrelationMatrixOutput",
+  "type": "object"
+}

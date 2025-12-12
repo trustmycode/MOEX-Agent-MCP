@@ -177,3 +177,4 @@ class TestBaseSubagentRepr:
         
         assert "MockSubagent" in str_repr
         assert "test_agent" in str_repr
+

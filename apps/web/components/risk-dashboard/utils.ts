@@ -77,22 +77,32 @@ export function resolveDataRef<T = unknown>(
   }, root) as T | undefined;
 }
 
-export function formatMetricValue(value: number, unit?: string): string {
-  const abs = Math.abs(value);
-  const fractionDigits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-  const formatted = new Intl.NumberFormat('ru-RU', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  }).format(value);
-  return unit ? `${formatted} ${unit}` : formatted;
+export function formatMetricValue(value: number | string, unit?: string): string {
+  if (typeof value === 'number') {
+    const abs = Math.abs(value);
+    const fractionDigits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+    const formatted = new Intl.NumberFormat('ru-RU', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(value);
+    return unit ? `${formatted} ${unit}` : formatted;
+  }
+
+  return unit ? `${value} ${unit}` : String(value);
 }
 
-export function formatChange(change?: number): string | null {
+export function formatChange(change?: number | string): string | null {
   if (change === undefined || change === null) return null;
-  const abs = Math.abs(change);
+  const numeric =
+    typeof change === 'number'
+      ? change
+      : Number(String(change).replace('%', '').replace('+', ''));
+  if (Number.isNaN(numeric)) return String(change);
+
+  const abs = Math.abs(numeric);
   const fractionDigits = abs >= 10 ? 1 : 2;
   const formatted = abs.toFixed(fractionDigits);
-  return `${change >= 0 ? '+' : '-'}${formatted}%`;
+  return `${numeric >= 0 ? '+' : '-'}${formatted}%`;
 }
 
 export function formatAsOf(asOf: string): string {

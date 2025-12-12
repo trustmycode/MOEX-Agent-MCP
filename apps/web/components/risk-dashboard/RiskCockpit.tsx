@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertBlock } from './AlertBlock';
+import { DashboardRenderer } from './DashboardRenderer';
 import { MetricCard } from './MetricCard';
 import { AllocationChart } from './charts/AllocationChart';
 import { EquityChart } from './charts/EquityChart';
@@ -13,6 +14,10 @@ type Props = {
 };
 
 export function RiskCockpit({ data }: Props) {
+  if (data.layout && data.layout.length > 0) {
+    return <DashboardRenderer spec={data} />;
+  }
+
   const metrics = data.metrics ?? [];
   const charts = data.charts ?? [];
   const tables = data.tables ?? [];

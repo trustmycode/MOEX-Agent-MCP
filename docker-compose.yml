@@ -5,6 +5,10 @@ services:
     build:
       context: .
       dockerfile: moex_iss_mcp/Dockerfile
+      cache_from:
+        - type=local,src=.docker-cache/moex-iss-mcp
+      cache_to:
+        - type=local,dest=.docker-cache/moex-iss-mcp,mode=max
     env_file:
       - .env
     environment:
@@ -19,6 +23,10 @@ services:
     build:
       context: .
       dockerfile: risk_analytics_mcp/Dockerfile
+      cache_from:
+        - type=local,src=.docker-cache/risk-analytics-mcp
+      cache_to:
+        - type=local,dest=.docker-cache/risk-analytics-mcp,mode=max
     env_file:
       - .env
     environment:
@@ -36,6 +44,10 @@ services:
     build:
       context: .
       dockerfile: packages/agent-service/Dockerfile
+      cache_from:
+        - type=local,src=.docker-cache/agent
+      cache_to:
+        - type=local,dest=.docker-cache/agent,mode=max
     env_file:
       - .env
     environment:
@@ -58,12 +70,18 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_DISABLE_SOURCEMAPS: ${NEXT_DISABLE_SOURCEMAPS:-1}
+      cache_from:
+        - type=local,src=.docker-cache/web
+      cache_to:
+        - type=local,dest=.docker-cache/web,mode=max
     env_file:
       - .env
     environment:
       - PORT=${WEB_PORT:-3000}
       - HOSTNAME=0.0.0.0
-      - AGENT_SERVICE_URL=${AGENT_SERVICE_URL:-http://agent:8100/a2a}
+      - AGENT_SERVICE_URL=${AGENT_SERVICE_URL:-http://agent:8100/agui}
       - NODE_ENV=production
     ports:
       - "${WEB_PORT:-3000}:3000"

@@ -1,0 +1,347 @@
+{
+  "$id": "https://moex-agent-mcp/schemas/risk-dashboard.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "alert": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "related_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "severity": {
+          "$ref": "#/definitions/severity"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "message"
+      ],
+      "type": "object"
+    },
+    "chart": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "series": {
+          "items": {
+            "$ref": "#/definitions/chartSeries"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "line",
+            "bar",
+            "pie"
+          ],
+          "type": "string"
+        },
+        "x_axis": {
+          "$ref": "#/definitions/chartAxis"
+        },
+        "y_axis": {
+          "$ref": "#/definitions/chartAxis"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "title",
+        "series"
+      ],
+      "type": "object"
+    },
+    "chartAxis": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "chartSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "data_ref": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "data_ref"
+      ],
+      "type": "object"
+    },
+    "layoutItem": {
+      "additionalProperties": false,
+      "properties": {
+        "alert_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "chart_id": {
+          "type": "string"
+        },
+        "columns": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "metric_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "options": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "table_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "kpi_grid",
+            "table",
+            "chart",
+            "alert_list",
+            "text"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "type": "object"
+    },
+    "metric": {
+      "additionalProperties": false,
+      "properties": {
+        "change": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/severity"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value"
+      ],
+      "type": "object"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "warning",
+        "high",
+        "critical"
+      ],
+      "type": "string"
+    },
+    "table": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/definitions/tableColumn"
+          },
+          "type": "array"
+        },
+        "data_ref": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "columns",
+        "data_ref"
+      ],
+      "type": "object"
+    },
+    "tableColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "align": {
+          "enum": [
+            "left",
+            "right",
+            "center"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    }
+  },
+  "description": "Версионированный контракт RiskDashboardSpec для AG-UI layout.",
+  "properties": {
+    "alerts": {
+      "items": {
+        "$ref": "#/definitions/alert"
+      },
+      "type": "array"
+    },
+    "charts": {
+      "items": {
+        "$ref": "#/definitions/chart"
+      },
+      "type": "array"
+    },
+    "data": {
+      "additionalProperties": true,
+      "description": "Сырые табличные данные, referenced через data_ref",
+      "type": "object"
+    },
+    "layout": {
+      "description": "Декларативный список виджетов (JSON → React render)",
+      "items": {
+        "$ref": "#/definitions/layoutItem"
+      },
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": false,
+      "description": "Метаданные дашборда",
+      "properties": {
+        "as_of": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "base_currency": {
+          "type": "string"
+        },
+        "portfolio_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenario_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "as_of"
+      ],
+      "type": "object"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "#/definitions/metric"
+      },
+      "type": "array"
+    },
+    "tables": {
+      "items": {
+        "$ref": "#/definitions/table"
+      },
+      "type": "array"
+    },
+    "time_series": {
+      "additionalProperties": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "description": "Временные ряды для графиков",
+      "type": "object"
+    },
+    "version": {
+      "description": "Версия контракта. Текущая — 1.0",
+      "pattern": "^1\\.0(\\.\\d+)?$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "metadata",
+    "layout"
+  ],
+  "title": "RiskDashboardSpec v1.0",
+  "type": "object"
+}

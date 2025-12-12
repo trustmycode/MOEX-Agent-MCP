@@ -123,3 +123,4 @@
   "required": ["metadata", "target_weights", "trades"],
   "additionalProperties": false
 }
+

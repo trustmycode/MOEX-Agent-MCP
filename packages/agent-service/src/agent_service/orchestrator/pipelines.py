@@ -376,3 +376,4 @@ def get_pipeline_summary(scenario_type: ScenarioType) -> str:
     required_marks = ["*" if step.required else "" for step in pipeline.steps]
     labeled_steps = [f"{name}{mark}" for name, mark in zip(step_names, required_marks)]
     return " → ".join(labeled_steps)
+

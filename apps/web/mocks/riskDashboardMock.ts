@@ -1,12 +1,38 @@
 import { RiskDashboardSpec } from '@/components/risk-dashboard/types';
 
 export const riskDashboardMock: RiskDashboardSpec = {
+  version: '1.0',
   metadata: {
     as_of: '2025-12-11T10:00:00Z',
     scenario_type: 'portfolio_risk_basic',
     base_currency: 'RUB',
     portfolio_id: 'demo-portfolio-001',
   },
+  layout: [
+    {
+      id: 'kpis',
+      type: 'kpi_grid',
+      title: 'Ключевые метрики',
+      metric_ids: [
+        'portfolio_total_return_pct',
+        'portfolio_var_light',
+        'portfolio_annualized_volatility_pct',
+        'top1_weight_pct',
+        'portfolio_max_drawdown_pct',
+      ],
+      columns: 3,
+    },
+    { id: 'alerts', type: 'alert_list', title: 'Предупреждения' },
+    { id: 'chart_equity', type: 'chart', title: 'Equity Curve', chart_id: 'equity_curve' },
+    {
+      id: 'chart_weights',
+      type: 'chart',
+      title: 'Структура портфеля по бумагам',
+      chart_id: 'weights_by_ticker',
+    },
+    { id: 'table_positions', type: 'table', table_id: 'positions', title: 'Позиции портфеля' },
+    { id: 'table_stress', type: 'table', table_id: 'stress_results', title: 'Стресс-сценарии' },
+  ],
   metrics: [
     {
       id: 'portfolio_total_return_pct',

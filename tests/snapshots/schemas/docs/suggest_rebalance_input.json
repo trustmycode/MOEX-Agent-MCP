@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Input schema for risk-analytics-mcp.suggest_rebalance tool.",
+  "properties": {
+    "positions": {
+      "description": "Current portfolio positions with weights.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_class": {
+            "default": "equity",
+            "description": "Asset class (equity, fixed_income, fx, cash, etc.).",
+            "minLength": 1,
+            "type": "string"
+          },
+          "board": {
+            "description": "MOEX board (optional).",
+            "maxLength": 16,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current_value": {
+            "description": "Current value of the position (optional).",
+            "minimum": 0,
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "current_weight": {
+            "description": "Current weight of the position in portfolio (0..1).",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "issuer": {
+            "description": "Issuer code for grouping (optional).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ticker": {
+            "description": "Ticker, e.g. SBER.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "current_weight"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "risk_profile": {
+      "additionalProperties": false,
+      "description": "Target risk profile with constraints.",
+      "properties": {
+        "max_equity_weight": {
+          "default": 1.0,
+          "description": "Maximum equity weight in portfolio.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_fixed_income_weight": {
+          "default": 1.0,
+          "description": "Maximum fixed income weight in portfolio.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_fx_weight": {
+          "default": 1.0,
+          "description": "Maximum FX assets weight in portfolio.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_issuer_weight": {
+          "default": 0.3,
+          "description": "Maximum single issuer weight in portfolio.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        "max_single_position_weight": {
+          "default": 0.25,
+          "description": "Maximum single position weight (concentration limit).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        "max_turnover": {
+          "default": 0.5,
+          "description": "Maximum allowed turnover for rebalancing (0..1).",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "target_asset_class_weights": {
+          "additionalProperties": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Target weights by asset class (equity, fixed_income, fx, etc.).",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "total_portfolio_value": {
+      "description": "Total portfolio value for calculating trade amounts.",
+      "exclusiveMinimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "positions"
+  ],
+  "title": "SuggestRebalanceInput",
+  "type": "object"
+}

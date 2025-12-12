@@ -116,3 +116,4 @@
   "required": ["positions"],
   "additionalProperties": false
 }
+

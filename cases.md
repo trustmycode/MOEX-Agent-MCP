@@ -116,6 +116,14 @@ curl -s -X POST http://localhost:8000/mcp \
   }' | grep '^data:' | tail -1 | sed 's/^data: //' | jq .
 ```
 
+export MCP_URL=http://localhost:8000/mcp
+
+# snapshot PIKK
+curl -s "$MCP_URL" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/call","params":{"name":"get_security_snapshot","arguments":{"ticker":"PIKK","board":"TQBR"}}}'
+
 ### Ожидаемый результат
 
 ```json

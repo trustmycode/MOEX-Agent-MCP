@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://moex-agent-mcp/schemas/risk-dashboard.schema.json",
+  "title": "RiskDashboardSpec v1.0",
+  "description": "Версионированный контракт RiskDashboardSpec для AG-UI layout.",
+  "type": "object",
+  "required": ["version", "metadata", "layout"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Версия контракта. Текущая — 1.0",
+      "pattern": "^1\\.0(\\.\\d+)?$"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Метаданные дашборда",
+      "required": ["as_of"],
+      "additionalProperties": false,
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "scenario_type": { "type": "string" },
+        "base_currency": { "type": "string" },
+        "portfolio_id": { "type": ["string", "null"] }
+      }
+    },
+    "layout": {
+      "type": "array",
+      "description": "Декларативный список виджетов (JSON → React render)",
+      "items": { "$ref": "#/definitions/layoutItem" }
+    },
+    "metrics": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/metric" }
+    },
+    "charts": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/chart" }
+    },
+    "tables": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/table" }
+    },
+    "alerts": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/alert" }
+    },
+    "data": {
+      "type": "object",
+      "description": "Сырые табличные данные, referenced через data_ref",
+      "additionalProperties": true
+    },
+    "time_series": {
+      "type": "object",
+      "description": "Временные ряды для графиков",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "object", "additionalProperties": true }
+      }
+    }
+  },
+  "definitions": {
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "warning", "high", "critical"]
+    },
+    "layoutItem": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["kpi_grid", "table", "chart", "alert_list", "text"]
+        },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "metric_ids": { "type": "array", "items": { "type": "string" } },
+        "chart_id": { "type": "string" },
+        "table_id": { "type": "string" },
+        "alert_ids": { "type": "array", "items": { "type": "string" } },
+        "columns": { "type": "integer", "minimum": 1 },
+        "options": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "required": ["id", "label", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "value": { "type": "number" },
+        "unit": { "type": "string" },
+        "change": { "type": "number" },
+        "severity": { "$ref": "#/definitions/severity" }
+      }
+    },
+    "chart": {
+      "type": "object",
+      "required": ["id", "type", "title", "series"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["line", "bar", "pie"] },
+        "title": { "type": "string" },
+        "x_axis": { "$ref": "#/definitions/chartAxis" },
+        "y_axis": { "$ref": "#/definitions/chartAxis" },
+        "series": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/chartSeries" }
+        }
+      }
+    },
+    "chartAxis": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "label": { "type": "string" }
+      }
+    },
+    "chartSeries": {
+      "type": "object",
+      "required": ["id", "label", "data_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "data_ref": { "type": "string" },
+        "color": { "type": "string" }
+      }
+    },
+    "table": {
+      "type": "object",
+      "required": ["id", "columns", "data_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/tableColumn" }
+        },
+        "data_ref": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "tableColumn": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "align": { "type": "string", "enum": ["left", "right", "center"] }
+      }
+    },
+    "alert": {
+      "type": "object",
+      "required": ["id", "severity", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "severity": { "$ref": "#/definitions/severity" },
+        "message": { "type": "string" },
+        "related_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      }
+    }
+  }
+}
+

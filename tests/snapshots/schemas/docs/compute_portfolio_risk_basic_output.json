@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Output of risk-analytics-mcp.compute_portfolio_risk_basic.",
+  "properties": {
+    "concentration_metrics": {
+      "additionalProperties": false,
+      "description": "Basic concentration metrics.",
+      "properties": {
+        "hhi": {
+          "description": "Herfindahl-Hirschman Index (0..1).",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top1_weight_pct": {
+          "description": "Weight of top-1 position, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top3_weight_pct": {
+          "description": "Weight of top-3 positions, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top5_weight_pct": {
+          "description": "Weight of top-5 positions, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "error": {
+      "additionalProperties": true,
+      "description": "Error details if the calculation failed.",
+      "properties": {
+        "details": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "error_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "message"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "Request metadata: dates, rebalance policy, tickers, data source.",
+      "properties": {
+        "as_of": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "from_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "iss_base_url": {
+          "type": "string"
+        },
+        "rebalance": {
+          "enum": [
+            "buy_and_hold",
+            "monthly"
+          ],
+          "type": "string"
+        },
+        "tickers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to_date": {
+          "format": "date",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "per_instrument": {
+      "description": "Per-instrument risk metrics.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "annualized_volatility_pct": {
+            "description": "Annualized volatility from daily returns, %.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max_drawdown_pct": {
+            "description": "Max drawdown over the period, %.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ticker": {
+            "description": "Ticker, e.g. SBER.",
+            "type": "string"
+          },
+          "total_return_pct": {
+            "description": "Total return over the period, %.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "weight": {
+            "description": "Weight of the instrument (0..1).",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "ticker",
+          "weight"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "portfolio_metrics": {
+      "additionalProperties": false,
+      "description": "Aggregated portfolio metrics.",
+      "properties": {
+        "annualized_volatility_pct": {
+          "description": "Annualized portfolio volatility, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_drawdown_pct": {
+          "description": "Max portfolio drawdown, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total_return_pct": {
+          "description": "Total portfolio return, %.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "stress_results": {
+      "description": "Stress scenarios with estimated P&L.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "Human readable scenario description.",
+            "type": "string"
+          },
+          "drivers": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Key shocks/weights used in the estimation.",
+            "type": "object"
+          },
+          "id": {
+            "description": "Scenario identifier.",
+            "type": "string"
+          },
+          "pnl_pct": {
+            "description": "Estimated P&L under scenario, % of portfolio.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "pnl_pct"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "var_light": {
+      "additionalProperties": false,
+      "description": "Parametric VaR-light block.",
+      "properties": {
+        "annualized_volatility_pct": {
+          "type": "number"
+        },
+        "confidence_level": {
+          "type": "number"
+        },
+        "horizon_days": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string"
+        },
+        "var_pct": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "confidence_level",
+        "horizon_days",
+        "annualized_volatility_pct",
+        "var_pct"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "metadata",
+    "per_instrument",
+    "portfolio_metrics",
+    "concentration_metrics",
+    "stress_results",
+    "var_light"
+  ],
+  "title": "ComputePortfolioRiskBasicOutput",
+  "type": "object"
+}

@@ -1,5 +1,7 @@
 export type Severity = "info" | "low" | "medium" | "high" | "critical" | "warning";
 
+export type WidgetType = "kpi_grid" | "table" | "chart" | "alert_list" | "text";
+
 export interface DashboardMetadata {
   as_of: string;
   scenario_type?: string;
@@ -62,11 +64,26 @@ export interface Alert {
 export type RiskDashboardDataRow = Record<string, unknown>;
 
 export interface RiskDashboardSpec {
+  version?: string;
   metadata: DashboardMetadata;
+  layout?: LayoutItem[];
   metrics?: Metric[];
   charts?: ChartSpec[];
   tables?: TableSpec[];
   alerts?: Alert[];
   data?: Record<string, unknown>;
   time_series?: Record<string, Array<Record<string, unknown>>>;
+}
+
+export interface LayoutItem {
+  id: string;
+  type: WidgetType;
+  title?: string;
+  description?: string;
+  metric_ids?: string[];
+  chart_id?: string;
+  table_id?: string;
+  alert_ids?: string[];
+  columns?: number;
+  options?: Record<string, unknown>;
 }

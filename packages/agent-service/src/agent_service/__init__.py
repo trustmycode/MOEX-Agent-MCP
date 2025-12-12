@@ -54,11 +54,14 @@ from .models import (
     ChartSpec,
     ChartType,
     DashboardMetadata,
+    LayoutItem,
+    Metric,
     MetricCard,
     MetricSeverity,
     RiskDashboardSpec,
     TableColumn,
     TableSpec,
+    WidgetType,
 )
 
 # Subagents
@@ -95,7 +98,9 @@ __all__ = [
     "RiskDashboardSpec",
     "DashboardMetadata",
     "MetricCard",
+    "Metric",
     "MetricSeverity",
+    "WidgetType",
     "TableColumn",
     "TableSpec",
     "ChartAxis",

@@ -383,3 +383,4 @@ echo "risk-analytics-mcp:"; curl -s http://localhost:8010/health | jq -r '.statu
 - [e2e_suggest_rebalance.sh](../../../tests/e2e_suggest_rebalance.sh) — примеры ребалансировки
 - [README.md](./README.md) — краткая инструкция
 - [SPEC_risk-analytics-mcp.md](../../../docs/SPEC_risk-analytics-mcp.md) — спецификация risk-analytics-mcp
+

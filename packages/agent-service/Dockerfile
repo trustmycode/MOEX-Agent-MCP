@@ -19,8 +19,6 @@ ENV AGENT_PORT=8100 \
 EXPOSE 8100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["python", "-c", "import os,sys,urllib.request;port=os.getenv('AGENT_PORT','8100');url='http://127.0.0.1:%s/health'%port; \
-import urllib.error; \
-try:\n resp=urllib.request.urlopen(url, timeout=3); sys.exit(0 if getattr(resp,'status',500)==200 else 1)\nexcept Exception:\n sys.exit(1)"]
+  CMD ["python", "-c", "import os, sys, urllib.request, urllib.error; port=os.getenv('AGENT_PORT','8100'); url=f'http://127.0.0.1:{port}/health'\ntry:\n    resp = urllib.request.urlopen(url, timeout=3)\n    sys.exit(0 if getattr(resp, 'status', 500) == 200 else 1)\nexcept Exception:\n    sys.exit(1)"]
 
 CMD ["uvicorn", "agent_service.server:app", "--host", "0.0.0.0", "--port", "8100"]

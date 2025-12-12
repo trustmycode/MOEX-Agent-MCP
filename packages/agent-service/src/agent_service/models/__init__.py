@@ -13,11 +13,14 @@ from .dashboard_spec import (
     ChartSpec,
     ChartType,
     DashboardMetadata,
+    LayoutItem,
+    Metric,
     MetricCard,
     MetricSeverity,
     RiskDashboardSpec,
     TableColumn,
     TableSpec,
+    WidgetType,
 )
 
 __all__ = [
@@ -25,8 +28,10 @@ __all__ = [
     "MetricSeverity",
     "AlertSeverity",
     "ChartType",
+    "WidgetType",
     # Metric Cards
     "MetricCard",
+    "Metric",
     # Tables
     "TableColumn",
     "TableSpec",
@@ -38,5 +43,7 @@ __all__ = [
     "Alert",
     # Dashboard
     "DashboardMetadata",
+    "LayoutItem",
     "RiskDashboardSpec",
 ]
+
