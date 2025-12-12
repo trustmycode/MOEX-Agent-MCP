@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -106,6 +107,8 @@ class OrchestratorAgent:
         planned_pipeline_steps: list[str] = []
         planned_steps_payload: list[dict[str, Any]] = []
         planner_attempted = False
+        fallback_reason: Optional[str] = None
+        unavailable_agents: list[str] = []
 
         try:
             # Шаг 1: Извлечение запроса
@@ -221,20 +224,7 @@ class OrchestratorAgent:
                         context.set_metadata("planned_steps", planned_steps_payload)
                 else:
                     logger.warning("Plan-first включён, но планировщик не вернул валидный план")
-                    # Жёсткий режим: не падаем в статику без ведома
-                    return A2AOutput.error(
-                        error_message="Планировщик не вернул валидный план",
-                        debug=self._build_debug_info(
-                            scenario_type,
-                            confidence,
-                            planned_pipeline_steps or [],
-                            subagent_traces,
-                            start_time,
-                            plan_source="fallback",
-                            planner_reasoning=planner_reasoning,
-                            raw_planner_response=raw_planner_response,
-                        ),
-                    )
+                    fallback_reason = "planner_failed"
 
             # 4b: Статика/динамика по порогу, если планировщик не сработал
             need_dynamic = (
@@ -265,10 +255,22 @@ class OrchestratorAgent:
                 context.scenario_type = scenario_type.value
 
             if pipeline is None:
-                pipeline = get_pipeline(ScenarioType.UNKNOWN)
+                pipeline = self._choose_static_pipeline(context, scenario_type, confidence)
                 plan_source = "fallback"
-                planned_pipeline_steps = pipeline.subagent_names
-                context.scenario_type = ScenarioType.UNKNOWN.value
+                planned_pipeline_steps = pipeline.subagent_names if pipeline else []
+                context.scenario_type = (
+                    pipeline.scenario_type.value if pipeline else ScenarioType.UNKNOWN.value
+                )
+                fallback_reason = fallback_reason or "no_dynamic_plan"
+            else:
+                if confidence < self.dynamic_planning_threshold:
+                    static_candidate = self._choose_static_pipeline(context, scenario_type, confidence)
+                    if static_candidate and static_candidate.scenario_type != ScenarioType.UNKNOWN:
+                        pipeline = static_candidate
+                        plan_source = "fallback"
+                        planned_pipeline_steps = pipeline.subagent_names
+                        context.scenario_type = pipeline.scenario_type.value
+                        fallback_reason = fallback_reason or "low_confidence_static"
 
             logger.info(
                 "Using pipeline (%s): %s (%d steps)",
@@ -276,6 +278,12 @@ class OrchestratorAgent:
                 pipeline.description,
                 len(pipeline.steps),
             )
+
+            # Деградация цепочки при недоступности сабагентов
+            pipeline, unavailable_agents = self._degrade_pipeline_if_needed(pipeline)
+            if unavailable_agents:
+                fallback_reason = fallback_reason or "agents_unavailable"
+            planned_pipeline_steps = pipeline.subagent_names
 
             # Шаг 5: Выполнение pipeline
             result = await self._execute_pipeline(
@@ -296,6 +304,8 @@ class OrchestratorAgent:
                 planner_reasoning=planner_reasoning,
                 raw_planner_response=raw_planner_response,
                 planned_pipeline_steps=planned_pipeline_steps or [t.name for t in subagent_traces],
+                fallback_reason=fallback_reason,
+                unavailable_agents=unavailable_agents,
             )
 
         except Exception as e:
@@ -375,7 +385,7 @@ class OrchestratorAgent:
                 "pipeline": dynamic_plan["pipeline"],
                 "steps": dynamic_plan.get("steps", []),
                 "reasoning": plan_block.get("reasoning"),
-                "raw_response": planner_result.data.get("raw_llm_response"),
+                "raw_response": (planner_result.data.get("raw_llm_response") or "")[:4000],
             }
 
         except asyncio.TimeoutError:
@@ -553,6 +563,133 @@ class OrchestratorAgent:
             ),
             "steps": planned_steps_payload,
         }
+
+    def _choose_static_pipeline(
+        self,
+        context: AgentContext,
+        scenario_type: ScenarioType,
+        confidence: float,
+    ) -> ScenarioPipeline:
+        """
+        Эвристика выбора статического пайплайна при отсутствии валидного динамического.
+        """
+        parsed_params = context.get_result("parsed_params", {}) or {}
+        positions = parsed_params.get("positions") or []
+        query_lower = (context.user_query or "").lower()
+
+        # Если есть валидные позиции — портфельный риск
+        if isinstance(positions, list) and len(positions) > 0:
+            return get_pipeline(ScenarioType.PORTFOLIO_RISK)
+
+        # Индексная эвристика
+        if re.search(r"\b(imoex|rtsi|moex|индекс)\b", query_lower, re.IGNORECASE):
+            return get_pipeline(ScenarioType.INDEX_SCAN)
+
+        # Тикерная эвристика
+        tickers = set(re.findall(r"\b([A-Z]{2,6})\b", context.user_query or "", re.IGNORECASE))
+        if len(tickers) >= 2:
+            return get_pipeline(ScenarioType.SECURITIES_COMPARE)
+        if len(tickers) == 1:
+            return get_pipeline(ScenarioType.SECURITY_OVERVIEW)
+
+        # Если классификатор уверен — использовать его
+        if scenario_type != ScenarioType.UNKNOWN:
+            return get_pipeline(scenario_type)
+
+        return get_pipeline(ScenarioType.UNKNOWN)
+
+    def _degrade_pipeline_if_needed(
+        self,
+        pipeline: ScenarioPipeline,
+    ) -> tuple[ScenarioPipeline, list[str]]:
+        """
+        Упростить пайплайн, если обязательные сабагенты недоступны.
+        Возвращает (обновлённый пайплайн, список недоступных сабагентов).
+        """
+        unavailable: list[str] = []
+        available_steps: list[PipelineStep] = []
+
+        for step in pipeline.steps:
+            if self.registry.get(step.subagent_name) is None:
+                unavailable.append(step.subagent_name)
+                continue
+            available_steps.append(step)
+
+        # Если отсутствует market_data — падаем до explainer-only
+        if "market_data" in unavailable:
+            degraded = ScenarioPipeline(
+                scenario_type=pipeline.scenario_type,
+                description=f"Degraded pipeline (explainer-only), missing: {unavailable}",
+                steps=[
+                    PipelineStep(
+                        subagent_name="explainer",
+                        required=True,
+                        timeout_seconds=20.0,
+                        depends_on=[],
+                        result_key="explainer",
+                    )
+                ],
+                default_timeout=self.default_timeout,
+            )
+            return degraded, unavailable
+
+        # Если отсутствует risk_analytics — убираем зависимости от него и dashboard
+        if "risk_analytics" in unavailable:
+            simplified_steps: list[PipelineStep] = []
+            has_market = self.registry.get("market_data") is not None
+            if has_market:
+                simplified_steps.append(
+                    PipelineStep(
+                        subagent_name="market_data",
+                        required=True,
+                        timeout_seconds=30.0,
+                        depends_on=[],
+                        result_key="market_data",
+                    )
+                )
+                simplified_steps.append(
+                    PipelineStep(
+                        subagent_name="explainer",
+                        required=True,
+                        timeout_seconds=20.0,
+                        depends_on=["market_data"],
+                        result_key="explainer",
+                    )
+                )
+            else:
+                simplified_steps.append(
+                    PipelineStep(
+                        subagent_name="explainer",
+                        required=True,
+                        timeout_seconds=20.0,
+                        depends_on=[],
+                        result_key="explainer",
+                    )
+                )
+            degraded = ScenarioPipeline(
+                scenario_type=pipeline.scenario_type,
+                description=f"Degraded pipeline (no risk_analytics), missing: {unavailable}",
+                steps=simplified_steps,
+                default_timeout=self.default_timeout,
+            )
+            return degraded, unavailable
+
+        # Фильтруем шаги, завязанные на отсутствующие
+        if unavailable:
+            filtered: list[PipelineStep] = []
+            available_names = {s.subagent_name for s in available_steps}
+            for step in available_steps:
+                step.depends_on = [d for d in step.depends_on if d in available_names]
+                filtered.append(step)
+            degraded = ScenarioPipeline(
+                scenario_type=pipeline.scenario_type,
+                description=f"Degraded pipeline (missing optional): {unavailable}",
+                steps=filtered,
+                default_timeout=pipeline.default_timeout,
+            )
+            return degraded, unavailable
+
+        return pipeline, unavailable
 
     async def _execute_pipeline(
         self,
@@ -766,6 +903,8 @@ class OrchestratorAgent:
         planner_reasoning: Optional[str] = None,
         raw_planner_response: Optional[str] = None,
         planned_pipeline_steps: Optional[list[str]] = None,
+        fallback_reason: Optional[str] = None,
+        unavailable_agents: Optional[list[str]] = None,
     ) -> A2AOutput:
         """
         Построить финальный A2A-ответ.
@@ -796,6 +935,8 @@ class OrchestratorAgent:
             plan_source=plan_source,
             planner_reasoning=planner_reasoning,
             raw_planner_response=raw_planner_response,
+            fallback_reason=fallback_reason,
+            unavailable_agents=unavailable_agents or [],
         )
 
         # Определяем статус ответа
@@ -964,7 +1105,27 @@ class OrchestratorAgent:
         """
         dashboard_result = context.get_result("dashboard")
         if not dashboard_result:
-            return None
+            return {
+                "version": "1.0",
+                "metadata": {
+                    "scenario_type": context.scenario_type or "unknown",
+                    "base_currency": "RUB",
+                },
+                "layout": [],
+                "metrics": [],
+                "charts": [],
+                "tables": [],
+                "alerts": [
+                    {
+                        "id": "no_data",
+                        "severity": "warning",
+                        "message": "Данные для дашборда недоступны",
+                        "related_ids": [],
+                    }
+                ],
+                "data": {},
+                "time_series": {},
+            }
 
         # Если сабагент вернул объект модели — сериализуем
         if hasattr(dashboard_result, "model_dump"):
@@ -990,6 +1151,8 @@ class OrchestratorAgent:
         plan_source: str = "static",
         planner_reasoning: Optional[str] = None,
         raw_planner_response: Optional[str] = None,
+        fallback_reason: Optional[str] = None,
+        unavailable_agents: Optional[list[str]] = None,
     ) -> DebugInfo:
         """
         Построить отладочную информацию.
@@ -1015,6 +1178,8 @@ class OrchestratorAgent:
             plan_source=plan_source,
             planner_reasoning=planner_reasoning,
             raw_planner_response=raw_planner_response,
+            fallback_reason=fallback_reason,
+            unavailable_agents=unavailable_agents or [],
         )
 
     def _get_fallback_text(self) -> str:

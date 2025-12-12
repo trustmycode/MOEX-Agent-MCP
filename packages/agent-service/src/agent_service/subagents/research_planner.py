@@ -106,6 +106,7 @@ class ResearchPlannerSubagent(BaseSubagent):
     SUBAGENT_NAME = "research_planner"
     SUPPORTED_SUBAGENTS = {"market_data", "risk_analytics", "dashboard", "explainer", "knowledge"}
     MAX_STEPS = 5
+    TIMEOUT_CAP_SECONDS = 60.0
     DASHBOARD_SCENARIOS = {
         "portfolio_risk",
         "cfo_liquidity",
@@ -310,11 +311,11 @@ class ResearchPlannerSubagent(BaseSubagent):
             if not plan.steps:
                 return SubagentResult.create_error(
                     error="Ошибка: LLM не вернул ни одного шага плана",
-                    data={"raw_response": raw_response, "plan_source": plan_source},
+                    data={"raw_response": raw_response[:4000] if raw_response else None, "plan_source": plan_source},
                 )
 
             # Постобработка: удаляем дубли, добавляем финальный explainer и ограничиваем длину
-            plan.steps = self._finalize_steps(plan.steps)
+            plan.steps = self._finalize_steps(plan.steps, context=context)
 
             plan_dict = self._to_plan_dict(plan, raw_response, plan_source=plan_source)
             return SubagentResult.success(data=plan_dict)
@@ -455,6 +456,13 @@ class ResearchPlannerSubagent(BaseSubagent):
         if not isinstance(depends_on, list):
             depends_on = []
 
+        timeout_val = raw_step.get("timeout_seconds") or raw_step.get("timeout")
+        try:
+            if timeout_val is not None:
+                timeout_val = min(float(timeout_val), self.TIMEOUT_CAP_SECONDS)
+        except Exception:
+            timeout_val = None
+
         return {
             "subagent": str(subagent_name).strip() if subagent_name else None,
             "subagent_name": str(subagent_name).strip() if subagent_name else None,
@@ -464,7 +472,7 @@ class ResearchPlannerSubagent(BaseSubagent):
             "tool_name": tool_name,
             "args": args,
             "depends_on": depends_on,
-            "timeout_seconds": raw_step.get("timeout_seconds") or raw_step.get("timeout"),
+            "timeout_seconds": timeout_val,
         }
 
     def _validate_step_against_catalog(self, step: dict[str, Any]) -> bool:
@@ -589,7 +597,7 @@ class ResearchPlannerSubagent(BaseSubagent):
     # Постобработка плана
     # ------------------------------------------------------------------ #
 
-    def _finalize_steps(self, steps: list[PlannedStep]) -> list[PlannedStep]:
+    def _finalize_steps(self, steps: list[PlannedStep], context: AgentContext) -> list[PlannedStep]:
         """
         Удалить дубли, обеспечить финальный explainer и ограничить длину.
         """
@@ -631,6 +639,53 @@ class ResearchPlannerSubagent(BaseSubagent):
                     timeout_seconds=None,
                 )
             )
+
+        # Авто-инъекция dashboard для портфельных/связанных сценариев, если есть место
+        scenario_str = (context.scenario_type or "").lower()
+        need_dashboard = scenario_str in self.DASHBOARD_SCENARIOS
+        has_dashboard = "dashboard" in seen
+        if need_dashboard and not has_dashboard:
+            if len(unique_steps) >= self.MAX_STEPS:
+                for idx in range(len(unique_steps) - 1, -1, -1):
+                    if not unique_steps[idx].required:
+                        unique_steps.pop(idx)
+                        break
+            if len(unique_steps) < self.MAX_STEPS:
+                unique_steps.append(
+                    PlannedStep(
+                        subagent="dashboard",
+                        description="Собрать дашборд",
+                        required=True,
+                        tool="build_dashboard",
+                        args={},
+                        depends_on=["risk_analytics"] if "risk_analytics" in seen else [],
+                        timeout_seconds=min(15.0, self.TIMEOUT_CAP_SECONDS),
+                    )
+                )
+                seen.add("dashboard")
+
+        # Требуем market_data для портфельных сценариев, если отсутствует
+        need_market = scenario_str in {"portfolio_risk", "portfolio_risk_basic", "cfo_liquidity", "dynamic_plan"}
+        if need_market and "market_data" not in seen:
+            if len(unique_steps) >= self.MAX_STEPS:
+                for idx in range(len(unique_steps) - 1, -1, -1):
+                    if not unique_steps[idx].required:
+                        unique_steps.pop(idx)
+                        break
+            if len(unique_steps) < self.MAX_STEPS:
+                unique_steps.insert(
+                    0,
+                    PlannedStep(
+                        subagent="market_data",
+                        description="Получить рыночные данные",
+                        required=True,
+                        tool=None,
+                        args={},
+                        depends_on=[],
+                        timeout_seconds=min(30.0, self.TIMEOUT_CAP_SECONDS),
+                    ),
+                )
+                seen.add("market_data")
 
         return unique_steps[: self.MAX_STEPS]
 
