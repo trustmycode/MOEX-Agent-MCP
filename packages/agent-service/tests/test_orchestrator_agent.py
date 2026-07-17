@@ -423,7 +423,7 @@ class TestHandleRequestWithErrors:
         assert output.status == "success"
 
     async def test_missing_required_subagent(self):
-        """Отсутствующий обязательный сабагент приводит к ошибке."""
+        """При недоступности данных план безопасно деградирует до объяснения."""
         registry = SubagentRegistry()
         # Не регистрируем market_data
         registry.register(MockRiskAnalyticsSubagent())
@@ -445,8 +445,10 @@ class TestHandleRequestWithErrors:
         
         output = await orchestrator.handle_request(input_data)
         
-        assert output.status == "error"
-        assert "market_data" in output.error_message.lower()
+        assert output.status == "success"
+        assert output.debug is not None
+        assert output.debug.fallback_reason == "agents_unavailable"
+        assert "market_data" in output.debug.unavailable_agents
 
 
 class TestDebugInfo:

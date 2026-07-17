@@ -14,6 +14,9 @@ COPY risk_analytics_mcp /app/risk_analytics_mcp
 RUN pip install --upgrade pip && \
     pip install .
 
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 ENV RISK_MCP_PORT=8010 \
     HOST=0.0.0.0
 EXPOSE 8010

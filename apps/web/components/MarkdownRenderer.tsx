@@ -28,21 +28,31 @@ type CodeProps = React.ComponentPropsWithoutRef<'code'> & { inline?: boolean; no
 type TableProps = React.ComponentPropsWithoutRef<'table'> & { node?: unknown };
 
 const components = {
-  a: ({ node: _node, ...props }: AnchorProps) => <a {...props} rel="noreferrer noopener" />,
-  pre: ({ node: _node, className, ...props }: PreProps) => (
-    <pre className={`code-block ${className ?? ''}`.trim()} {...props} />
-  ),
-  code: ({ node: _node, inline, className, ...props }: CodeProps) => (
-    <code
-      className={`${inline ? 'inline-code' : 'code-inline'} ${className ?? ''}`.trim()}
-      {...props}
-    />
-  ),
-  table: ({ node: _node, ...props }: TableProps) => (
-    <div className="table-wrapper">
-      <table {...props} />
-    </div>
-  ),
+  a: ({ node, ...props }: AnchorProps) => {
+    void node;
+    return <a {...props} rel="noreferrer noopener" />;
+  },
+  pre: ({ node, className, ...props }: PreProps) => {
+    void node;
+    return <pre className={`code-block ${className ?? ''}`.trim()} {...props} />;
+  },
+  code: ({ node, inline, className, ...props }: CodeProps) => {
+    void node;
+    return (
+      <code
+        className={`${inline ? 'inline-code' : 'code-inline'} ${className ?? ''}`.trim()}
+        {...props}
+      />
+    );
+  },
+  table: ({ node, ...props }: TableProps) => {
+    void node;
+    return (
+      <div className="table-wrapper">
+        <table {...props} />
+      </div>
+    );
+  },
 };
 
 export function MarkdownRenderer({ content, className, emptyText = 'Нет содержимого' }: Props) {
@@ -65,4 +75,3 @@ export function MarkdownRenderer({ content, className, emptyText = 'Нет со�
     </div>
   );
 }
-

@@ -17,6 +17,9 @@ COPY packages/agent-service/src/agent_service /app/agent_service
 # Копируем схемы для валидации (используются сервером для DASHBOARD_SCHEMA)
 COPY docs/schemas /app/docs/schemas
 
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 ENV AGENT_PORT=8100 \
     LOG_LEVEL=INFO
 EXPOSE 8100

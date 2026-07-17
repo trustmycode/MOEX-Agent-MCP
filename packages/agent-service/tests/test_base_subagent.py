@@ -81,7 +81,7 @@ class TestBaseSubagentExecute:
         agent = MockSubagent()
         ctx = AgentContext(user_query="test query")
         
-        result = asyncio.get_event_loop().run_until_complete(agent.execute(ctx))
+        result = asyncio.run(agent.execute(ctx))
         
         assert agent.execute_called is True
         assert agent.last_context is ctx
@@ -94,7 +94,7 @@ class TestBaseSubagentExecute:
         agent = MockSubagent(should_fail=True)
         ctx = AgentContext(user_query="test query")
         
-        result = asyncio.get_event_loop().run_until_complete(agent.execute(ctx))
+        result = asyncio.run(agent.execute(ctx))
         
         assert result.is_error
         assert result.error_message == "Mock error"
@@ -108,7 +108,7 @@ class TestBaseSubagentSafeExecute:
         agent = MockSubagent()
         ctx = AgentContext(user_query="test query")
         
-        result = asyncio.get_event_loop().run_until_complete(agent.safe_execute(ctx))
+        result = asyncio.run(agent.safe_execute(ctx))
         
         assert result.is_success
         assert result.data == {"mock_result": True}
@@ -118,7 +118,7 @@ class TestBaseSubagentSafeExecute:
         agent = MockSubagent(fail_with_exception=True)
         ctx = AgentContext(user_query="test query")
         
-        result = asyncio.get_event_loop().run_until_complete(agent.safe_execute(ctx))
+        result = asyncio.run(agent.safe_execute(ctx))
         
         assert result.is_error
         assert "mock_agent" in result.error_message
@@ -177,5 +177,4 @@ class TestBaseSubagentRepr:
         
         assert "MockSubagent" in str_repr
         assert "test_agent" in str_repr
-
 

@@ -75,7 +75,7 @@ class TestRiskAnalyticsSubagentInit:
             "compute_portfolio_risk_basic",
             "compute_correlation_matrix",
             "suggest_rebalance",
-            "cfo_liquidity_report",
+            "build_cfo_liquidity_report",
             "issuer_peers_compare",
         ]
         assert risk_subagent.capabilities == expected
@@ -255,7 +255,7 @@ class TestRiskAnalyticsSubagentCFOLiquidity:
         ]
 
         mock_mcp_client.call_tool.return_value = ToolCallResult.success_result(
-            tool_name="cfo_liquidity_report",
+            tool_name="build_cfo_liquidity_report",
             data={
                 "liquidity_profile": {"quick_ratio_pct": 75.0},
                 "executive_summary": {
@@ -432,7 +432,7 @@ class TestRiskAnalyticsSubagentExecute:
         context.add_result("parsed_params", {"positions": positions})
 
         mock_mcp_client.call_tool.return_value = ToolCallResult.success_result(
-            tool_name="cfo_liquidity_report",
+            tool_name="build_cfo_liquidity_report",
             data={"executive_summary": {}},
         )
 
@@ -547,5 +547,4 @@ class TestRiskAnalyticsSubagentErrorHandling:
 
         assert result.is_error
         assert "RuntimeError" in result.error_message
-
 

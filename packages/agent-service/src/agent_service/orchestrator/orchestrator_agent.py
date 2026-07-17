@@ -471,10 +471,9 @@ class OrchestratorAgent:
                     tool,
                     subagent,
                 )
-                if required:
-                    missing_required.append(f"{subagent}:{tool}")
-                # если tool не поддержан — добавим шаг без tool
-                tool = None
+                # Не превращаем инструментальный шаг в общий вызов сабагента:
+                # это могло бы выполнить другую операцию, чем запланировала модель.
+                continue
 
             steps.append(
                 PipelineStep(

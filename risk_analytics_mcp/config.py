@@ -22,7 +22,7 @@ def _get_bool(value: Optional[str], *, default: bool = False) -> bool:
 
 
 DEFAULT_PORT = int(os.getenv("RISK_MCP_PORT", os.getenv("PORT", "8010")))
-DEFAULT_HOST = os.getenv("RISK_MCP_HOST", os.getenv("HOST", "0.0.0.0"))
+DEFAULT_HOST = os.getenv("RISK_MCP_HOST", os.getenv("HOST", "127.0.0.1"))
 DEFAULT_MAX_PORTFOLIO_TICKERS = int(os.getenv("RISK_MAX_PORTFOLIO_TICKERS", "50"))
 DEFAULT_MAX_CORRELATION_TICKERS = int(os.getenv("RISK_MAX_CORRELATION_TICKERS", "20"))
 DEFAULT_MAX_PEERS = int(os.getenv("RISK_MAX_PEERS", "15"))

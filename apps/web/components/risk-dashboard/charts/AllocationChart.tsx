@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ChartSpec, RiskDashboardSpec } from '../types';
+import type { ChartSeries, ChartSpec, RiskDashboardSpec } from '../types';
 import { chartPalette, resolveDataRef, toArray } from '../utils';
 
 type Props = {
@@ -22,7 +22,7 @@ type Props = {
 };
 
 function renderBar(chart: ChartSpec, dashboard: RiskDashboardSpec) {
-  const seriesList = toArray(chart.series);
+  const seriesList = toArray<ChartSeries>(chart.series);
   const series = seriesList[0];
   const data = toArray<Record<string, unknown>>(
     resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref),
@@ -42,7 +42,7 @@ function renderBar(chart: ChartSpec, dashboard: RiskDashboardSpec) {
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold text-white">{chart.title}</p>
-        <span className="text-xs text-slate-400">Bar</span>
+        <span className="text-xs text-slate-400">Столбцы</span>
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -86,7 +86,7 @@ function renderBar(chart: ChartSpec, dashboard: RiskDashboardSpec) {
 }
 
 function renderPie(chart: ChartSpec, dashboard: RiskDashboardSpec) {
-  const seriesList = toArray(chart.series);
+  const seriesList = toArray<ChartSeries>(chart.series);
   const series = seriesList[0];
   const data = toArray<Record<string, unknown>>(
     resolveDataRef<Array<Record<string, unknown>>>(dashboard, series?.data_ref),
@@ -106,7 +106,7 @@ function renderPie(chart: ChartSpec, dashboard: RiskDashboardSpec) {
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold text-white">{chart.title}</p>
-        <span className="text-xs text-slate-400">Pie</span>
+        <span className="text-xs text-slate-400">Круговая</span>
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">

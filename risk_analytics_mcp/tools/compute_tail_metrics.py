@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
+from ..mcp_instance import mcp
 from .utils import ToolResult
 
 
@@ -72,8 +73,19 @@ def _compute_basic_metrics_from_ohlcv(series: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
-def compute_tail_metrics(input_model: TailMetricsInput) -> ToolResult:
+@mcp.tool(
+    name="compute_tail_metrics",
+    description=(
+        "Рассчитать доходность, годовую волатильность и максимальную просадку "
+        "для набора временных рядов OHLCV."
+    ),
+)
+async def compute_tail_metrics(
+    ohlcv: Dict[str, List[Dict[str, Any]]],
+    constituents: Optional[List[Dict[str, Any]]] = None,
+) -> ToolResult:
     try:
+        input_model = TailMetricsInput(ohlcv=ohlcv, constituents=constituents)
         payload = input_model.model_dump()
         ohlcv = payload["ohlcv"]
         constituents = payload.get("constituents") or []
@@ -134,4 +146,3 @@ def compute_tail_metrics(input_model: TailMetricsInput) -> ToolResult:
             error_type="internal_error",
             message=str(exc),
         )
-
