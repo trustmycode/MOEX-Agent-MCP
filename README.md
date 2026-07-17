@@ -100,7 +100,7 @@ docker push <registry>/<project>/<image>:<tag>
 3) Зарегистрируйте агента:
    - Endpoint A2A: `POST /a2a`, Health: `GET /health`.
    - Подключённые MCP: `MOEX_ISS_MCP_URL`, `RISK_ANALYTICS_MCP_URL`.
-   - Секреты: `LLM_API_KEY` (или SA key), `MOEX_API_KEY` при необходимости.
+   - Секреты: обязательный `AGENT_API_KEY`, `LLM_API_KEY` и `MOEX_API_KEY` при необходимости.
 4) Платформа: linux/amd64, без stateful зависимостей.
 
 ## MCP инструменты (каталог)
@@ -113,7 +113,7 @@ docker push <registry>/<project>/<image>:<tag>
   - План: `market_data.get_ohlcv_timeseries` → `risk_analytics.compute_portfolio_risk_basic` → `dashboard` → `explainer`.
 - CFO ликвидность:
   - Запрос: «Сформируй CFO отчёт по ликвидности портфеля с ковенантой 25%».
-  - План: `risk_analytics.cfo_liquidity_report` → `dashboard` → `explainer`.
+  - План: `risk_analytics.build_cfo_liquidity_report` → `dashboard` → `explainer`.
 - Индекс:
   - Запрос: «Покажи хвост индекса IMOEX и его волатильность за 30 дней».
   - План: `market_data.get_index_constituents_metrics` → `risk_analytics.compute_tail_metrics` → `explainer`.
@@ -122,6 +122,7 @@ docker push <registry>/<project>/<image>:<tag>
 ```bash
 curl -X POST http://localhost:8100/a2a \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${AGENT_API_KEY}" \
   -d '{
     "messages": [{"role": "user", "content": "Оцени риск портфеля: SBER 40%, GAZP 30%, LKOH 30%"}],
     "session_id": "demo-1",
@@ -131,7 +132,7 @@ curl -X POST http://localhost:8100/a2a \
 ```
 
 ### AG-UI (SSE)
-- UI ходит на `/agui`: `AGENT_SERVICE_URL=http://agent:8100/agui` (или локальный адрес).
+- Веб-приложение ходит на `/agui`: `AGENT_SERVICE_URL=http://agent:8100/agui` (или локальный адрес) и передаёт `AGENT_API_KEY` только на серверной стороне.
 - События: RUN_STARTED → TEXT_MESSAGE_* → STATE_SNAPSHOT (дашборд/таблицы) → RUN_FINISHED/ERROR.
 
 ## Тесты
@@ -147,5 +148,3 @@ curl -X POST http://localhost:8100/a2a \
 ## Лицензия и ограничения
 - Платформа выполнения: linux/amd64.
 - Запрещён прямой веб-скрапинг; использованы официальные API MOEX ISS.
-
-

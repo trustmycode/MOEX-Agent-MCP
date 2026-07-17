@@ -572,3 +572,17 @@ def test_metrics_increment_on_http_call(monkeypatch):
 
         assert 'tool_calls_total{tool="compute_portfolio_risk_basic"}' in metrics_after
         assert metrics_after != metrics_before
+
+def test_all_declared_risk_tools_are_registered():
+    """Реестр сервера содержит инструменты, которые вызывает агент."""
+    server = RiskMcpServer(RiskMcpConfig(enable_monitoring=False))
+    registered = set(server.fastmcp._tool_manager._tools)
+
+    assert {
+        "compute_portfolio_risk_basic",
+        "compute_correlation_matrix",
+        "suggest_rebalance",
+        "build_cfo_liquidity_report",
+        "issuer_peers_compare",
+        "compute_tail_metrics",
+    } <= registered

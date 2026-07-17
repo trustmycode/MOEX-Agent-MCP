@@ -14,12 +14,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import time
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 from jsonschema import Draft7Validator
 from pydantic import BaseModel, Field
@@ -92,7 +93,7 @@ def _build_registry() -> SubagentRegistry:
 def _build_orchestrator() -> OrchestratorAgent:
     """Создать экземпляр оркестратора с таймаутами из ENV."""
     default_timeout = float(os.getenv("AGENT_STEP_TIMEOUT_SECONDS", "120"))
-    enable_debug = os.getenv("AGENT_ENABLE_DEBUG", "true").lower() in {"1", "true", "yes", "y"}
+    enable_debug = os.getenv("AGENT_ENABLE_DEBUG", "false").lower() in {"1", "true", "yes", "y"}
     plan_first_enabled = os.getenv("AGENT_PLAN_FIRST", "true").lower() in {"1", "true", "yes", "y"}
     planner_timeout = float(os.getenv("AGENT_PLANNER_TIMEOUT_SECONDS", "60"))
     registry = _build_registry()
@@ -130,6 +131,24 @@ class AguiRunInput(BaseModel):
     messages: list[AguiMessage] = Field(default_factory=list)
     tools: list[dict[str, Any]] = Field(default_factory=list)
     context: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _require_api_key(authorization: Optional[str] = Header(default=None)) -> None:
+    """Проверить служебный ключ без небезопасного режима по умолчанию."""
+    expected = os.getenv("AGENT_API_KEY")
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Служебная авторизация не настроена",
+        )
+
+    scheme, _, supplied = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not supplied or not secrets.compare_digest(supplied, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверные учётные данные",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def _sse(event: dict[str, Any], event_name: Optional[str] = None) -> str:
@@ -174,24 +193,6 @@ def _filter_dashboard(payload: Any) -> Any:
     return {k: v for k, v in payload.items() if k in allowed_keys}
 
 
-def _filter_dashboard(payload: Any) -> Any:
-    """Оставить только поля, разрешённые схемой."""
-    if not isinstance(payload, dict):
-        return payload
-    allowed_keys = {
-        "version",
-        "metadata",
-        "layout",
-        "metrics",
-        "charts",
-        "tables",
-        "alerts",
-        "data",
-        "time_series",
-    }
-    return {k: v for k, v in payload.items() if k in allowed_keys}
-
-
 @app.get("/health")
 async def health() -> dict[str, str]:
     """Простой healthcheck для orchestrator-агента."""
@@ -199,7 +200,10 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/a2a")
-async def handle_a2a(a2a_input: A2AInput) -> dict[str, object]:
+async def handle_a2a(
+    a2a_input: A2AInput,
+    _: None = Depends(_require_api_key),
+) -> dict[str, object]:
     """
     Обработать A2A-запрос в соответствии со спецификацией Evolution AI Agents.
     """
@@ -210,12 +214,15 @@ async def handle_a2a(a2a_input: A2AInput) -> dict[str, object]:
         logger.exception("A2A handler failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Internal error: {type(exc).__name__}: {exc}",
+            detail="Внутренняя ошибка сервера",
         ) from exc
 
 
 @app.post("/agui")
-async def handle_agui(run_input: AguiRunInput):
+async def handle_agui(
+    run_input: AguiRunInput,
+    _: None = Depends(_require_api_key),
+):
     """
     AG-UI endpoint: принимает RunAgentInput и возвращает stream BaseEvent (SSE).
     Минимальный набор: RUN_STARTED -> TEXT_MESSAGE_* -> STATE_SNAPSHOT -> RUN_FINISHED / RUN_ERROR.
@@ -247,7 +254,13 @@ async def handle_agui(run_input: AguiRunInput):
             return _sse(base, event_name=event_type)
 
         # lifecycle start
-        yield send("RUN_STARTED", {"input": run_input.model_dump(mode="json")})
+        yield send(
+            "RUN_STARTED",
+            {
+                "messageCount": len(run_input.messages),
+                "toolCount": len(run_input.tools),
+            },
+        )
 
         if not user_query.strip():
             yield send("RUN_ERROR", {"message": "Empty user query"})
@@ -289,7 +302,7 @@ async def handle_agui(run_input: AguiRunInput):
             snapshot = {
                 "dashboard": dashboard_payload,
                 "tables": payload.get("tables"),
-                "debug": payload.get("debug"),
+                "debug": payload.get("debug") if orchestrator_agent.enable_debug else None,
                 "status": payload.get("status"),
                 "schema_valid": valid_dashboard,
             }
@@ -302,7 +315,7 @@ async def handle_agui(run_input: AguiRunInput):
             yield send("RUN_FINISHED", {})
         except Exception as exc:  # pragma: no cover - внешняя защита
             logger.exception("AG-UI handler failed")
-            yield send("RUN_ERROR", {"message": f"{type(exc).__name__}: {exc}"})
+            yield send("RUN_ERROR", {"message": "Внутренняя ошибка сервера"})
         finally:
             if not terminal_sent:
                 yield send("RUN_ERROR", {"message": "Stream closed without terminal event"})

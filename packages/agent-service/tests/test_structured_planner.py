@@ -62,7 +62,7 @@ def test_finalize_plan_adds_explainer():
     )
 
     plan = planner._parse_llm_response(raw)
-    plan.steps = planner._finalize_steps(plan.steps)
+    plan.steps = planner._finalize_steps(plan.steps, AgentContext(user_query="test"))
     names = [step.subagent_name for step in plan.steps]
 
     assert "market_data" in names
@@ -78,4 +78,3 @@ def test_validate_step_against_catalog_checks_required_args():
     }
 
     assert planner._validate_step_against_catalog(bad_step) is False
-

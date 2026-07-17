@@ -5,7 +5,6 @@ MarketDataSubagent — сабагент для получения рыночны
 - get_security_snapshot — текущие данные по бумаге
 - get_ohlcv_timeseries — исторические котировки
 - get_index_constituents_metrics — состав и метрики индекса
-- get_security_fundamentals — фундаментальные данные
 """
 
 from __future__ import annotations
@@ -56,7 +55,6 @@ class MarketDataSubagent(BaseSubagent):
     TOOL_SNAPSHOT = "get_security_snapshot"
     TOOL_OHLCV = "get_ohlcv_timeseries"
     TOOL_INDEX = "get_index_constituents_metrics"
-    TOOL_FUNDAMENTALS = "get_security_fundamentals"
 
     def __init__(
         self,
@@ -77,7 +75,6 @@ class MarketDataSubagent(BaseSubagent):
                 self.TOOL_SNAPSHOT,
                 self.TOOL_OHLCV,
                 self.TOOL_INDEX,
-                self.TOOL_FUNDAMENTALS,
             ],
         )
 
@@ -611,20 +608,6 @@ class MarketDataSubagent(BaseSubagent):
                     next_agent_hint="risk_analytics",
                 )
 
-            if tool == self.TOOL_FUNDAMENTALS:
-                ticker = (args.get("ticker") or "").upper()
-                if not ticker:
-                    return SubagentResult.create_error(error="План требует ticker для get_security_fundamentals")
-                fundamentals_result = await self.get_security_fundamentals(ticker=ticker)
-                if not fundamentals_result.success:
-                    return SubagentResult.create_error(
-                        error=f"{ticker}: {fundamentals_result.error.message if fundamentals_result.error else 'fundamentals error'}"
-                    )
-                return SubagentResult.success(
-                    data={ticker: {"fundamentals": fundamentals_result.data}},
-                    next_agent_hint="explainer",
-                )
-
             if tool:
                 return SubagentResult.create_error(error=f"Неизвестный tool для market_data: {tool}")
         except Exception as exc:  # pragma: no cover - защита от неожиданных ошибок
@@ -708,24 +691,6 @@ class MarketDataSubagent(BaseSubagent):
                 "index_ticker": index_ticker.upper(),
                 "as_of_date": as_of_date,
             },
-        )
-
-    async def get_security_fundamentals(
-        self,
-        ticker: str,
-    ) -> ToolCallResult:
-        """
-        Получить фундаментальные данные по бумаге.
-
-        Args:
-            ticker: Тикер бумаги.
-
-        Returns:
-            ToolCallResult с данными или ошибкой.
-        """
-        return await self._mcp_client.call_tool(
-            tool_name=self.TOOL_FUNDAMENTALS,
-            args={"ticker": ticker.upper()},
         )
 
     # --- Helper Methods ---

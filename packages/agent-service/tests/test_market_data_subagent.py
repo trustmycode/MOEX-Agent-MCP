@@ -69,7 +69,6 @@ class TestMarketDataSubagentInit:
             "get_security_snapshot",
             "get_ohlcv_timeseries",
             "get_index_constituents_metrics",
-            "get_security_fundamentals",
         ]
         assert market_data_subagent.capabilities == expected
 
@@ -417,5 +416,4 @@ class TestMarketDataSubagentErrorHandling:
         assert result.is_partial
         assert result.data["snapshot"] is not None
         assert result.data["ohlcv"] is None
-
 

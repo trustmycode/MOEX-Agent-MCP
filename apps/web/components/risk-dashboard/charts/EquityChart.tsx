@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ChartSpec, RiskDashboardSpec } from '../types';
+import type { ChartSeries, ChartSpec, RiskDashboardSpec } from '../types';
 import { chartPalette, resolveDataRef, toArray } from '../utils';
 
 type Props = {
@@ -24,7 +24,7 @@ function buildLineData(chart: ChartSpec, dashboard: RiskDashboardSpec) {
   const xField = chart.x_axis?.field ?? 'x';
   const yField = chart.y_axis?.field ?? 'value';
   const map = new Map<string | number, Record<string, unknown>>();
-  const seriesList = toArray(chart.series);
+  const seriesList = toArray<ChartSeries>(chart.series);
 
   seriesList.forEach((series) => {
     const rows = toArray<SeriesRow>(resolveDataRef<SeriesRow[]>(dashboard, series.data_ref));
@@ -64,7 +64,7 @@ function formatTick(value: string | number) {
 
 export function EquityChart({ chart, dashboard }: Props) {
   const data = buildLineData(chart, dashboard);
-  const seriesList = toArray(chart.series);
+  const seriesList = toArray<ChartSeries>(chart.series);
   const xField = chart.x_axis?.field ?? 'x';
 
   if (seriesList.length === 0 || data.length === 0) {

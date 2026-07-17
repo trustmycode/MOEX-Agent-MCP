@@ -51,7 +51,7 @@ class RiskAnalyticsSubagent(BaseSubagent):
     TOOL_PORTFOLIO_RISK = "compute_portfolio_risk_basic"
     TOOL_CORRELATION = "compute_correlation_matrix"
     TOOL_REBALANCE = "suggest_rebalance"
-    TOOL_CFO_LIQUIDITY = "cfo_liquidity_report"
+    TOOL_CFO_LIQUIDITY = "build_cfo_liquidity_report"
     TOOL_ISSUER_PEERS = "issuer_peers_compare"
     TOOL_TAIL_METRICS = "compute_tail_metrics"
 

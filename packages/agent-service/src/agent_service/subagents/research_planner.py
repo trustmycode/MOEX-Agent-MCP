@@ -149,13 +149,12 @@ class ResearchPlannerSubagent(BaseSubagent):
             {"tool": "get_security_snapshot", "required_args": ["ticker"], "optional_args": ["board"]},
             {"tool": "get_ohlcv_timeseries", "required_args": ["ticker", "from_date", "to_date"], "optional_args": ["interval", "board"]},
             {"tool": "get_index_constituents_metrics", "required_args": ["index_ticker"], "optional_args": ["as_of_date"]},
-            {"tool": "get_security_fundamentals", "required_args": ["ticker"], "optional_args": []},
         ],
         "risk_analytics": [
             {"tool": "compute_portfolio_risk_basic", "required_args": ["positions"], "optional_args": ["from_date", "to_date", "rebalance"]},
             {"tool": "compute_correlation_matrix", "required_args": ["tickers"], "optional_args": ["from_date", "to_date"]},
             {"tool": "suggest_rebalance", "required_args": ["positions"], "optional_args": ["total_portfolio_value", "risk_profile"]},
-            {"tool": "cfo_liquidity_report", "required_args": ["positions"], "optional_args": ["from_date", "to_date", "total_portfolio_value", "horizon_months", "base_currency"]},
+            {"tool": "build_cfo_liquidity_report", "required_args": ["positions"], "optional_args": ["from_date", "to_date", "total_portfolio_value", "horizon_months", "base_currency"]},
             {"tool": "issuer_peers_compare", "required_args": ["ticker"], "optional_args": ["index_ticker", "sector", "peer_tickers", "max_peers", "as_of_date"]},
             {"tool": "compute_tail_metrics", "required_args": ["ohlcv"], "optional_args": ["constituents"]},
         ],
@@ -688,6 +687,5 @@ class ResearchPlannerSubagent(BaseSubagent):
                 seen.add("market_data")
 
         return unique_steps[: self.MAX_STEPS]
-
 
 

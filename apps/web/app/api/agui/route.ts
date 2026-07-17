@@ -11,6 +11,13 @@ function passthroughHeaders(upstream: Response) {
 
 export async function POST(req: Request) {
   const agentUrl = process.env.AGENT_SERVICE_URL || "http://localhost:8100/agui";
+  const agentApiKey = process.env.AGENT_API_KEY;
+  if (!agentApiKey) {
+    return Response.json(
+      { error: "Служебная авторизация не настроена" },
+      { status: 503 },
+    );
+  }
   const body = await req.text();
 
   const upstream = await fetch(agentUrl, {
@@ -18,6 +25,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
+      Authorization: `Bearer ${agentApiKey}`,
     },
     body,
     // В Node runtime duplex иногда нужен для стриминга (зависит от версии).
@@ -30,4 +38,3 @@ export async function POST(req: Request) {
     headers: passthroughHeaders(upstream),
   });
 }
-

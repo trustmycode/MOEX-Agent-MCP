@@ -16,7 +16,7 @@ load_dotenv(find_dotenv(filename=".env.sdk", raise_error_if_not_found=False))
 
 # Значения по умолчанию из окружения, чтобы избежать хардкода.
 DEFAULT_PORT = int(os.getenv("PORT", "8000"))
-DEFAULT_HOST = os.getenv("HOST", "0.0.0.0")
+DEFAULT_HOST = os.getenv("HOST", "127.0.0.1")
 DEFAULT_MOEX_ISS_RATE_LIMIT_RPS = float(os.getenv("MOEX_ISS_RATE_LIMIT_RPS", "3"))
 DEFAULT_MOEX_ISS_TIMEOUT_SECONDS = float(os.getenv("MOEX_ISS_TIMEOUT_SECONDS", "10"))
 DEFAULT_ENABLE_MONITORING = False if os.getenv("ENABLE_MONITORING") is None else os.getenv("ENABLE_MONITORING", "false").lower() == "true"

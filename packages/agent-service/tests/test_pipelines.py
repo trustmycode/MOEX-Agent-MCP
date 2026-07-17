@@ -116,6 +116,17 @@ class TestGetPipeline:
         for expected in expected_has:
             assert expected in names, f"{expected} not in {names}"
 
+    def test_returns_independent_pipeline_copy(self):
+        """Изменение плана одного запроса не затрагивает следующий запрос."""
+        first = get_pipeline(ScenarioType.PORTFOLIO_RISK)
+        second = get_pipeline(ScenarioType.PORTFOLIO_RISK)
+
+        first.steps[1].depends_on.clear()
+
+        assert first is not second
+        assert first.steps[1] is not second.steps[1]
+        assert second.steps[1].depends_on == ["market_data"]
+
 
 class TestPipelineProperties:
     """Тесты свойств конкретных pipeline'ов."""
@@ -203,5 +214,4 @@ class TestPipelineSummary:
             assert len(summary) > 0
             # Хотя бы один шаг
             assert any(name in summary for name in ["market_data", "explainer", "risk_analytics"])
-
 

@@ -14,6 +14,9 @@ COPY moex_iss_mcp /app/moex_iss_mcp
 RUN pip install --upgrade pip && \
     pip install .
 
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 ENV PORT=8000 \
     HOST=0.0.0.0
 EXPOSE 8000

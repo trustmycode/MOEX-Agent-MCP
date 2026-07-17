@@ -19,6 +19,7 @@ from .tools import (  # noqa: F401
     issuer_peers_compare,
     suggest_rebalance,
     build_cfo_liquidity_report,
+    compute_tail_metrics,
 )
 
 logger = logging.getLogger(__name__)

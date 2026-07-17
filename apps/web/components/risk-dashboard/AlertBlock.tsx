@@ -40,7 +40,7 @@ export function AlertBlock({ alerts }: Props) {
         {safeAlerts.map((alert) => {
           const Icon = severityIcon[alert.severity] ?? CircleAlert;
           const theme = getSeverityTheme(alert.severity);
-          const relatedIds = toArray(alert.related_ids);
+          const relatedIds = toArray<string>(alert.related_ids);
           return (
             <div
               key={alert.id}
