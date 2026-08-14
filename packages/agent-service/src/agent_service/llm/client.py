@@ -64,7 +64,19 @@ class OpenRouterLLMClient:
         self.backoff_factor = backoff_factor
         self.request_timeout = request_timeout
 
-        self.client = client or AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
+        client_kwargs: dict[str, Any] = {
+            "api_key": self.api_key,
+            "base_url": self.api_base,
+        }
+        default_headers: dict[str, str] = {}
+        if self.site_url:
+            default_headers["HTTP-Referer"] = self.site_url
+        if self.app_name:
+            default_headers["X-OpenRouter-Title"] = self.app_name
+        if default_headers:
+            client_kwargs["default_headers"] = default_headers
+
+        self.client = client or AsyncOpenAI(**client_kwargs)
 
     async def generate(
         self,
@@ -193,7 +205,10 @@ class OpenRouterLLMClient:
                     tools=tools,
                     tool_choice=tool_choice,
                     timeout=self.request_timeout,
+                    extra_body={"reasoning": {"effort": self.reasoning_effort}},
                 )
+
+                self._log_usage(response, requested_model=model)
 
                 choice = (response.choices or [None])[0]
                 if not choice or not choice.message:
@@ -231,6 +246,26 @@ class OpenRouterLLMClient:
         if last_error:
             raise last_error
         raise RuntimeError("LLM call failed without explicit error")
+
+    @staticmethod
+    def _log_usage(response: Any, *, requested_model: str) -> None:
+        """Записать расход OpenRouter без содержимого запроса и секретов."""
+        usage = getattr(response, "usage", None)
+        prompt_details = (
+            getattr(usage, "prompt_tokens_details", None) if usage is not None else None
+        )
+        logger.info(
+            "OpenRouter usage requested_model=%s actual_model=%s "
+            "prompt_tokens=%s cached_tokens=%s completion_tokens=%s cost=%s",
+            requested_model,
+            getattr(response, "model", None),
+            getattr(usage, "prompt_tokens", None) if usage is not None else None,
+            getattr(prompt_details, "cached_tokens", 0)
+            if prompt_details is not None
+            else 0,
+            getattr(usage, "completion_tokens", None) if usage is not None else None,
+            getattr(usage, "cost", None) if usage is not None else None,
+        )
 
     def _get_model_sequence(self) -> list[str]:
         """Вернуть последовательность моделей (основная → fallback)."""

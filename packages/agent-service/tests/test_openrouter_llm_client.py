@@ -1,8 +1,10 @@
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
 from agent_service.llm import OpenRouterLLMClient, build_openrouter_llm_client_from_env
+from agent_service.llm import client as client_module
 
 
 class TransientError(Exception):
@@ -12,6 +14,7 @@ class TransientError(Exception):
 class FakeMessage:
     def __init__(self, content: str) -> None:
         self.content = content
+        self.tool_calls = None
 
 
 class FakeChoice:
@@ -20,31 +23,57 @@ class FakeChoice:
 
 
 class FakeResponse:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, model: str = "actual-model") -> None:
         self.choices = [FakeChoice(content)]
+        self.model = model
+        self.usage = SimpleNamespace(
+            prompt_tokens=120,
+            completion_tokens=40,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=80),
+            cost=0.001,
+        )
 
 
 class FakeCompletions:
-    def __init__(self, responses: list[object], models_called: list[str]) -> None:
+    def __init__(
+        self,
+        responses: list[object],
+        models_called: list[str],
+        requests: list[dict] | None = None,
+    ) -> None:
         self._responses = iter(responses)
         self._models_called = models_called
+        self._requests = requests if requests is not None else []
 
     async def create(self, **kwargs):
+        self._requests.append(kwargs)
         self._models_called.append(kwargs.get("model"))
         next_response = next(self._responses)
         if isinstance(next_response, Exception):
             raise next_response
+        if isinstance(next_response, FakeResponse):
+            return next_response
         return FakeResponse(next_response)
 
 
 class FakeChat:
-    def __init__(self, responses: list[object], models_called: list[str]) -> None:
-        self.completions = FakeCompletions(responses, models_called)
+    def __init__(
+        self,
+        responses: list[object],
+        models_called: list[str],
+        requests: list[dict] | None = None,
+    ) -> None:
+        self.completions = FakeCompletions(responses, models_called, requests)
 
 
 class FakeOpenAI:
-    def __init__(self, responses: list[object], models_called: list[str]) -> None:
-        self.chat = FakeChat(responses, models_called)
+    def __init__(
+        self,
+        responses: list[object],
+        models_called: list[str],
+        requests: list[dict] | None = None,
+    ) -> None:
+        self.chat = FakeChat(responses, models_called, requests)
 
 
 @pytest.mark.asyncio
@@ -157,3 +186,57 @@ def test_factory_reads_openrouter_environment(monkeypatch):
     assert client.fallback_model == "fallback-model"
     assert client.reasoning_effort == "low"
 
+
+def test_openrouter_builds_attribution_headers(monkeypatch):
+    captured: dict = {}
+
+    def fake_async_openai(**kwargs):
+        captured.update(kwargs)
+        return FakeOpenAI([], [])
+
+    monkeypatch.setattr(client_module, "AsyncOpenAI", fake_async_openai)
+
+    OpenRouterLLMClient(
+        api_key="test-key",
+        site_url="https://example.test",
+        app_name="MOEX Market Analyst",
+    )
+
+    assert captured["base_url"] == "https://openrouter.ai/api/v1"
+    assert captured["default_headers"] == {
+        "HTTP-Referer": "https://example.test",
+        "X-OpenRouter-Title": "MOEX Market Analyst",
+    }
+
+
+@pytest.mark.asyncio
+async def test_generate_sends_low_reasoning_effort():
+    requests: list[dict] = []
+    client = OpenRouterLLMClient(
+        api_key="test-key",
+        client=FakeOpenAI(["ok"], [], requests=requests),
+        max_retries=0,
+    )
+
+    await client.generate("sys", "user")
+
+    assert requests[0]["extra_body"] == {"reasoning": {"effort": "low"}}
+
+
+@pytest.mark.asyncio
+async def test_generate_logs_usage_without_secret(caplog):
+    client = OpenRouterLLMClient(
+        api_key="test-key",
+        client=FakeOpenAI([FakeResponse("ok")], []),
+        max_retries=0,
+    )
+
+    with caplog.at_level("INFO"):
+        await client.generate("sys", "user")
+
+    assert "actual-model" in caplog.text
+    assert "prompt_tokens=120" in caplog.text
+    assert "cached_tokens=80" in caplog.text
+    assert "completion_tokens=40" in caplog.text
+    assert "cost=0.001" in caplog.text
+    assert "test-key" not in caplog.text
