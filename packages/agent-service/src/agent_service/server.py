@@ -26,7 +26,7 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel, Field
 
 from agent_service.core import SubagentRegistry
-from agent_service.llm import build_evolution_llm_client_from_env
+from agent_service.llm import build_openrouter_llm_client_from_env
 from agent_service.orchestrator.models import A2AInput
 from agent_service.orchestrator.orchestrator_agent import OrchestratorAgent
 from agent_service.subagents.dashboard import DashboardSubagent
@@ -75,12 +75,14 @@ except Exception as exc:  # pragma: no cover - необязательная за
 def _build_registry() -> SubagentRegistry:
     """Инициализировать реестр сабагентов с дефолтными зависимостями."""
     registry = SubagentRegistry()
-    llm_client = build_evolution_llm_client_from_env()
+    llm_client = build_openrouter_llm_client_from_env()
 
     if llm_client:
-        logger.info("ExplainerSubagent: EvolutionLLMClient включён")
+        logger.info("OpenRouterLLMClient включён для планировщика и формирования отчёта")
     else:
-        logger.info("ExplainerSubagent: LLM_API_KEY не задан, используется MockLLMClient")
+        logger.info(
+            "OPENROUTER_API_KEY не задан, используются локальные имитационные клиенты"
+        )
 
     registry.register(ResearchPlannerSubagent(llm_client=llm_client))
     registry.register(MarketDataSubagent())
@@ -205,7 +207,7 @@ async def handle_a2a(
     _: None = Depends(_require_api_key),
 ) -> dict[str, object]:
     """
-    Обработать A2A-запрос в соответствии со спецификацией Evolution AI Agents.
+    Обработать запрос по протоколу A2A.
     """
     try:
         output = await orchestrator_agent.handle_request(a2a_input)
