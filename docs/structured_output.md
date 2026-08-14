@@ -1,76 +1,64 @@
-# Structured output для Cloud.ru моделей
+# Структурированный вывод через OpenRouter
 
-## Флаги окружения
-- `LLM_USE_STRUCTURED_TAG=true` — включает структурированный вывод (по умолчанию true).
-- `LLM_STRUCTURED_MODELS` — список моделей через запятую (по умолчанию `openai/gpt-oss-120b,Qwen/Qwen3-235B-A22B-Instruct-2507`).
-- `LLM_MODEL_MAIN`, `LLM_MODEL_FALLBACK`, `LLM_MODEL_DEV` — выбор моделей.
+## Настройки окружения
 
-## Формат `structural_tag`
-Клиент собирает `response_format` вида:
+- `OPENROUTER_MODEL` — основная модель, по умолчанию `google/gemini-3.7-flash`.
+- `OPENROUTER_FALLBACK_MODEL` — резервная модель, по умолчанию `openai/gpt-5.6-luna`.
+- `OPENROUTER_REASONING_EFFORT` — уровень рассуждения, по умолчанию `low`.
+
+## Формат ответа
+
+Планировщик передаёт совместимый с OpenAI параметр `response_format` со схемой JSON:
+
 ```json
 {
-  "type": "structural_tag",
-  "format": {
-    "type": "triggered_tags",
-    "triggers": ["<result>"],
-    "tags": [{
-      "begin": "<result>",
-      "end": "</result>",
-      "content": {
-        "type": "json_schema",
-        "json_schema": {
-          "name": "planner_plan",
-          "schema": { "...": "JSON Schema" }
-        }
-      }
-    }]
+  "type": "json_schema",
+  "json_schema": {
+    "name": "planner_plan",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "reasoning": { "type": "string" },
+        "steps": { "type": "array" }
+      },
+      "required": ["steps"]
+    }
   }
 }
 ```
 
-## Fallback
-Если Cloud.ru возвращает ошибку (например, 400), клиент делает повтор через tool-calling (`tools`) с извлечением `function.arguments`.
+Если выбранная модель не принимает схему JSON, клиент повторяет запрос с `json_object`. Следующая ступень совместимости — вызов инструмента с извлечением `function.arguments`. После исчерпания вариантов запрос направляется резервной модели.
 
-## Пример curl (healthcheck)
+## Пример запроса
+
 ```bash
-TOKEN="***"
-curl -s -X POST "https://foundation-models.api.cloud.ru/v1/chat/completions" \
-  -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST "https://openrouter.ai/api/v1/chat/completions" \
+  -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-oss-120b",
+    "model": "google/gemini-3.7-flash",
     "messages": [
-      {"role": "system", "content": "Отвечай строго в <result>{...}</result>"},
-      {"role": "user", "content": "верни ok=true"}
+      {"role": "system", "content": "Верни объект JSON по заданной схеме"},
+      {"role": "user", "content": "Верни ok=true"}
     ],
     "response_format": {
-      "type": "structural_tag",
-      "format": {
-        "type": "triggered_tags",
-        "triggers": ["<result>"],
-        "tags": [{
-          "begin": "<result>",
-          "end": "</result>",
-          "content": {
-            "type": "json_schema",
-            "json_schema": {
-              "name": "healthcheck",
-              "schema": {
-                "type": "object",
-                "required": ["ok"],
-                "properties": { "ok": { "type": "boolean" } }
-              }
-            }
-          }
-        }]
+      "type": "json_schema",
+      "json_schema": {
+        "name": "healthcheck",
+        "schema": {
+          "type": "object",
+          "required": ["ok"],
+          "properties": {"ok": {"type": "boolean"}}
+        }
       }
     },
+    "reasoning": {"effort": "low"},
     "temperature": 0
   }'
 ```
 
-## Требования к плану планировщика
-- ≤5 шагов, без циклов.
-- Для портфельных/CFO сценариев: `market_data` перед `risk_analytics`, финальный `explainer`.
-- Все tool-аргументы обязательны согласно каталогу.
+## Требования к плану
 
+- Не более пяти шагов, без циклов.
+- Для сценариев портфельного риска и финансового директора: `market_data` перед `risk_analytics`, в конце `explainer`.
+- Все аргументы инструментов обязательны согласно каталогу.

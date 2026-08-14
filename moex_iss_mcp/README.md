@@ -20,7 +20,7 @@ MCP-сервер, который проксирует ISS API Московско
 
 ## Быстрый старт локально
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 uv sync
 uv run python -m moex_iss_mcp.main    # http://localhost:8000
 curl http://localhost:8000/health
@@ -32,7 +32,7 @@ curl http://localhost:8000/health
 - Запуск: `docker run -p 8000:8000 --env-file env.example moex-iss-mcp:local`
 - В составе стека: `make local-up` (compose в корне).
 
-## Деплой в Evolution AI Agents
+## Развёртывание MCP-сервера
 - Соберите и запушьте образ `linux/amd64`, например:
 ```bash
 docker buildx build --platform linux/amd64 -t <registry>/<project>/moex-iss-mcp:<tag> -f moex_iss_mcp/Dockerfile .
@@ -46,4 +46,3 @@ docker push <registry>/<project>/moex-iss-mcp:<tag>
 - 429/ограничения: уменьшите частоту или поднимите `MOEX_ISS_RATE_LIMIT_RPS` при наличии квоты.
 - Таймауты: увеличьте `MOEX_ISS_TIMEOUT_SECONDS` или проверьте доступность `iss.moex.com`.
 - Нет трейсов/метрик: убедитесь, что заданы `ENABLE_MONITORING=true` или `OTEL_ENDPOINT`.
-

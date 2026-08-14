@@ -7,7 +7,7 @@
 ### Терминал 1 — moex-iss-mcp (порт 8000)
 
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 python -m moex_iss_mcp.main
 ```
 
@@ -23,7 +23,7 @@ python -m moex_iss_mcp.main
 ### Терминал 2 — risk-analytics-mcp (порт 8010)
 
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 python -m risk_analytics_mcp.main
 ```
 
@@ -124,7 +124,7 @@ curl -s -X POST http://localhost:8010/mcp \
 ### Запуск интерактивного режима
 
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP/packages/agent-service
+cd /Users/Admin/CursorProject/moex-agentic-system/packages/agent-service
 python examples/e2e_test.py
 ```
 
@@ -383,5 +383,4 @@ echo "risk-analytics-mcp:"; curl -s http://localhost:8010/health | jq -r '.statu
 - [e2e_suggest_rebalance.sh](../../../tests/e2e_suggest_rebalance.sh) — примеры ребалансировки
 - [README.md](./README.md) — краткая инструкция
 - [SPEC_risk-analytics-mcp.md](../../../docs/SPEC_risk-analytics-mcp.md) — спецификация risk-analytics-mcp
-
 

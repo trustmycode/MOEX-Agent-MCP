@@ -89,10 +89,7 @@ rawEnvs:
     isRequired: true
     description: "Базовый URL MCP moex-iss-mcp (например http://moex-iss-mcp:8000)"
 
-secretEnvs:
-  LLM_API_KEY:
-    isRequired: false
-    description: "Ключ доступа к LLM (если сервер напрямую вызывает FM/LLM)"
+secretEnvs: {}
 
 image_uri: ${IMAGE_URI}
 cmd: "python -m risk_analytics_mcp.main"
@@ -105,4 +102,3 @@ exposed_ports:
     protocol: "HTTP"
 status: "MCP_SERVER_PREDEFINED_STATUS_AVAILABLE"
 type: "MCP_SERVER_PREDEFINED_TYPE_INTERNAL"
-

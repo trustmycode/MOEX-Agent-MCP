@@ -4,16 +4,16 @@ C4Context
 
     Person(user, "Бизнес-пользователь", "CFO, риск-менеджер, инвестиционный аналитик")
 
-    System_Boundary(sys, "moex-market-analyst-agent (в Cloud.ru Evolution AI Agents)") {
-        System(agent_system, "moex-market-analyst-agent (Multi-Agent)", "Мультиагентная система (Orchestrator + Subagents), развёрнутая в Evolution AI Agents. Анализирует рынок Мосбиржи и выдаёт отчёты.")
+    System_Boundary(sys, "moex-market-analyst-agent") {
+        System(agent_system, "moex-market-analyst-agent (Multi-Agent)", "Мультиагентная система (Orchestrator + Subagents). Анализирует рынок Мосбиржи и выдаёт отчёты.")
     }
 
-    System_Ext(fm, "Evolution Foundation Models", "Cloud.ru Foundation Models API", "LLM, используемая агентами через https://foundation-models.api.cloud.ru/v1.")
+    System_Ext(fm, "OpenRouter", "Единый программный интерфейс языковых моделей", "Основная модель google/gemini-3.7-flash, резервная openai/gpt-5.6-luna.")
     System_Ext(moex, "MOEX ISS API", "Публичный HTTP JSON API", "Источник рыночных данных (котировки, история, индексы).")
     System_Ext(rag, "Дополнительные MCP (RAG/KB)", "MCP-серверы из каталога", "Опциональные источники текстовых знаний (методички, регламенты).")
 
     Rel(user, agent_system, "Задает вопросы на естественном языке и получает отчёты", "HTTP + JSON (A2A UI / интеграции)")
-    Rel(agent_system, fm, "Запросы /chat/completions от Orchestrator и Subagents", "HTTPS, LLM_API_BASE=https://foundation-models.api.cloud.ru/v1")
+    Rel(agent_system, fm, "Запросы /chat/completions от Orchestrator и Subagents", "HTTPS, OPENROUTER_API_BASE=https://openrouter.ai/api/v1")
     Rel(agent_system, moex, "Получает данные рынка через MCP (MarketDataSubagent → moex-iss-mcp)", "MCP → HTTP JSON")
     Rel(agent_system, rag, "Запросы к базе знаний (KnowledgeSubagent → kb-rag-mcp)", "MCP")
 ```

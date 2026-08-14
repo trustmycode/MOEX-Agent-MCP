@@ -51,7 +51,7 @@ moex_agent/
 │
 ├── llm/
 │   ├── __init__.py
-│   ├── client.py            # LlmClient (обёртка над Foundation Models)
+│   ├── client.py            # OpenRouterLLMClient
 │   └── prompts.py           # Шаблоны промптов для сабагентов
 │
 ├── mcp/
@@ -277,16 +277,14 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class LlmClient {
+    class OpenRouterLLMClient {
         -_api_base: str
-        -_model_main: str
-        -_model_fallback: str
-        -_model_dev: str
-        -_environment: str
-        +generate(messages: list[Message], max_tokens: int, temperature: float) str
-        +chat(messages: list[Message]) ChatResponse
-        -_select_model() str
-        -_retry_with_fallback(request) Response
+        -_model: str
+        -_fallback_model: str
+        -_reasoning_effort: str
+        +generate(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) str
+        -_call_model(model: str) str
+        -_get_model_sequence() list[str]
     }
 
     class Message {
@@ -294,15 +292,15 @@ classDiagram
         +content: str
     }
 
-    LlmClient --> Message
+    OpenRouterLLMClient --> Message
 ```
 
-**LlmClient (llm/client.py)**
+**OpenRouterLLMClient (`llm/client.py`)**
 
-Обёртка над Foundation Models:
-- Знает про `LLM_API_BASE`, `LLM_MODEL_MAIN`, `LLM_MODEL_FALLBACK`, `LLM_MODEL_DEV`.
-- Выбирает модель согласно `ENVIRONMENT`.
-- Реализует retry с fallback на резервную модель.
+Обёртка над OpenRouter:
+- Читает `OPENROUTER_API_BASE`, `OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODEL` и `OPENROUTER_REASONING_EFFORT`.
+- Передаёт необязательные заголовки атрибуции приложения.
+- Повторяет временно неуспешные запросы и переключается на резервную модель.
 
 ---
 

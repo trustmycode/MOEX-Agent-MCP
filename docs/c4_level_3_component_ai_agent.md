@@ -29,7 +29,7 @@ C4Component
         Component(mcp_client_risk, "MCP Client (risk-analytics)", "FastMCP client", "Инкапсулирует протокол MCP для risk-analytics-mcp.")
         Component(mcp_client_rag, "MCP Client (kb-rag)", "FastMCP client", "Инкапсулирует протокол MCP для kb-rag-mcp.")
 
-        Component(llm_client, "LLM Client", "HTTP client to FM", "Обёртка над Foundation Models API: /chat/completions.")
+        Component(llm_client, "OpenRouterLLMClient", "HTTP client", "Обёртка над OpenRouter API: /chat/completions, повтор запросов и резервная модель.")
 
         Component(telemetry, "Telemetry Adapter", "Phoenix / OTEL client", "Отправляет трейсы, метрики и логи.")
     }

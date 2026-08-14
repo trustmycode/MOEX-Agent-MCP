@@ -4,7 +4,7 @@ Next.js UI, который общается с агентом по SSE (`/agui`)
 
 ## Быстрый старт (локально)
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP/apps/web
+cd /Users/Admin/CursorProject/moex-agentic-system/apps/web
 pnpm install           # или npm/yarn
 pnpm dev               # порт 3000
 ```
