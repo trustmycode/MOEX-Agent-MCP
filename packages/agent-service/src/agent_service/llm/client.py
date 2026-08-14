@@ -18,49 +18,47 @@ from openai import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_API_BASE = "https://foundation-models.api.cloud.ru/v1"
-DEFAULT_MODEL_MAIN = "Qwen/Qwen3-235B-A22B-Instruct-2507"
-DEFAULT_MODEL_FALLBACK = "openai/gpt-oss-120b"
-DEFAULT_MODEL_DEV = "openai/gpt-oss-120b"
+DEFAULT_API_BASE = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "google/gemini-3.7-flash"
+DEFAULT_FALLBACK_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_REASONING_EFFORT = "low"
 
-class EvolutionLLMClient:
+
+class OpenRouterLLMClient:
     """
-    Клиент для Evolution Foundation Models (OpenAI-compatible API).
-
-    Использует official FM endpoint и умеет переключать модель в зависимости от окружения:
-    - dev → LLM_MODEL_DEV
-    - prod → LLM_MODEL_MAIN с fallback на LLM_MODEL_FALLBACK при retryable-ошибках
-    - LLM_MODEL (если задан) имеет наивысший приоритет.
+    Клиент OpenRouter через совместимый с OpenAI программный интерфейс.
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
-        model_main: Optional[str] = None,
-        model_fallback: Optional[str] = None,
-        model_dev: Optional[str] = None,
-        model_override: Optional[str] = None,
-        environment: Optional[str] = None,
+        model: Optional[str] = None,
+        fallback_model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+        site_url: Optional[str] = None,
+        app_name: Optional[str] = None,
         max_retries: int = 2,
         backoff_factor: float = 0.8,
         request_timeout: float = 30.0,
         client: Optional[AsyncOpenAI] = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("LLM_API_KEY")
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
-            raise ValueError("LLM_API_KEY не задан: EvolutionLLMClient выключен")
+            raise ValueError(
+                "OPENROUTER_API_KEY не задан: OpenRouterLLMClient выключен"
+            )
 
-        self.api_base = api_base or os.getenv("LLM_API_BASE", DEFAULT_API_BASE)
-        self.environment = (environment or os.getenv("ENVIRONMENT", "dev")).lower()
-
-        # Параметры моделей
-        self.model_override = model_override or os.getenv("LLM_MODEL")
-        self.model_main = model_main or os.getenv("LLM_MODEL_MAIN", DEFAULT_MODEL_MAIN)
-        self.model_fallback = model_fallback or os.getenv(
-            "LLM_MODEL_FALLBACK", DEFAULT_MODEL_FALLBACK
+        self.api_base = api_base or os.getenv("OPENROUTER_API_BASE", DEFAULT_API_BASE)
+        self.model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+        self.fallback_model = fallback_model or os.getenv(
+            "OPENROUTER_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL
         )
-        self.model_dev = model_dev or os.getenv("LLM_MODEL_DEV", DEFAULT_MODEL_DEV)
+        self.reasoning_effort = reasoning_effort or os.getenv(
+            "OPENROUTER_REASONING_EFFORT", DEFAULT_REASONING_EFFORT
+        )
+        self.site_url = site_url or os.getenv("OPENROUTER_SITE_URL")
+        self.app_name = app_name or os.getenv("OPENROUTER_APP_NAME")
 
         self.max_retries = max_retries
         self.backoff_factor = backoff_factor
@@ -117,7 +115,7 @@ class EvolutionLLMClient:
             except Exception as exc:
                 last_error = exc
                 logger.warning(
-                    "Evolution LLM call failed for model %s (%s). Trying fallback if available.",
+                    "OpenRouter call failed for model %s (%s). Trying fallback if available.",
                     model,
                     type(exc).__name__,
                 )
@@ -221,7 +219,7 @@ class EvolutionLLMClient:
 
                 delay = self.backoff_factor * (2**attempt)
                 logger.info(
-                    "Retrying Evolution LLM (attempt %d/%d, model=%s, error=%s), backoff=%.2fs",
+                    "Retrying OpenRouter (attempt %d/%d, model=%s, error=%s), backoff=%.2fs",
                     attempt + 1,
                     self.max_retries,
                     model,
@@ -236,27 +234,12 @@ class EvolutionLLMClient:
 
     def _get_model_sequence(self) -> list[str]:
         """Вернуть последовательность моделей (основная → fallback)."""
-        primary = self._select_primary_model()
-        models = [primary]
+        models = [self.model]
 
-        if (
-            self.environment == "prod"
-            and self.model_fallback
-            and self.model_fallback not in models
-        ):
-            models.append(self.model_fallback)
+        if self.fallback_model and self.fallback_model not in models:
+            models.append(self.fallback_model)
 
         return models
-
-    def _select_primary_model(self) -> str:
-        """Выбрать основную модель с учётом ENVIRONMENT и override."""
-        if self.model_override:
-            return self.model_override
-
-        if self.environment == "prod":
-            return self.model_main
-
-        return self.model_dev or self.model_main
 
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
@@ -270,25 +253,29 @@ class EvolutionLLMClient:
         return False
 
 
-def build_evolution_llm_client_from_env() -> Optional[EvolutionLLMClient]:
+def build_openrouter_llm_client_from_env() -> Optional[OpenRouterLLMClient]:
     """
-    Попробовать создать EvolutionLLMClient на основе переменных окружения.
+    Попробовать создать OpenRouterLLMClient на основе переменных окружения.
 
     Возвращает None, если ключ не задан или инициализация не удалась.
     """
-    api_key = os.getenv("LLM_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        logger.warning("LLM_API_KEY не найден: используется MockLLMClient")
+        logger.warning("OPENROUTER_API_KEY не найден: используется MockLLMClient")
         return None
 
     try:
-        client = EvolutionLLMClient(api_key=api_key)
+        client = OpenRouterLLMClient(api_key=api_key)
         logger.info(
-            "EvolutionLLMClient инициализирован (env=%s, model=%s)",
-            client.environment,
+            "OpenRouterLLMClient инициализирован (model=%s)",
             client._get_model_sequence()[0],
         )
         return client
     except Exception as exc:
-        logger.error("Не удалось инициализировать EvolutionLLMClient: %s", exc)
+        logger.error("Не удалось инициализировать OpenRouterLLMClient: %s", exc)
         return None
+
+
+# Временный мост на время последовательного перевода потребителей.
+EvolutionLLMClient = OpenRouterLLMClient
+build_evolution_llm_client_from_env = build_openrouter_llm_client_from_env

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from agent_service.llm import EvolutionLLMClient
+from agent_service.llm import OpenRouterLLMClient, build_openrouter_llm_client_from_env
 
 
 class TransientError(Exception):
@@ -48,15 +48,14 @@ class FakeOpenAI:
 
 
 @pytest.mark.asyncio
-async def test_generate_uses_dev_model_by_default(monkeypatch):
+async def test_generate_uses_primary_model_by_default(monkeypatch):
     models_called: list[str] = []
     fake_client = FakeOpenAI(responses=["hello"], models_called=models_called)
 
-    client = EvolutionLLMClient(
+    client = OpenRouterLLMClient(
         api_key="test-key",
         api_base="http://dummy",
-        model_dev="dev-model",
-        model_main="main-model",
+        model="primary-model",
         client=fake_client,
         max_retries=0,
     )
@@ -65,7 +64,7 @@ async def test_generate_uses_dev_model_by_default(monkeypatch):
     result = await client.generate(system_prompt="sys", user_prompt="user")
 
     assert result == "hello"
-    assert models_called == ["dev-model"]
+    assert models_called == ["primary-model"]
 
 
 @pytest.mark.asyncio
@@ -75,12 +74,11 @@ async def test_generate_falls_back_to_fallback_model(monkeypatch):
         responses=[TransientError("boom"), "from-fallback"], models_called=models_called
     )
 
-    client = EvolutionLLMClient(
+    client = OpenRouterLLMClient(
         api_key="test-key",
         api_base="http://dummy",
-        environment="prod",
-        model_main="main-model",
-        model_fallback="fallback-model",
+        model="primary-model",
+        fallback_model="fallback-model",
         client=fake_client,
         max_retries=0,
     )
@@ -91,7 +89,7 @@ async def test_generate_falls_back_to_fallback_model(monkeypatch):
     result = await client.generate(system_prompt="sys", user_prompt="user")
 
     assert result == "from-fallback"
-    assert models_called == ["main-model", "fallback-model"]
+    assert models_called == ["primary-model", "fallback-model"]
 
 
 @pytest.mark.asyncio
@@ -109,10 +107,10 @@ async def test_generate_retries_on_retryable_error(monkeypatch):
         models_called=models_called,
     )
 
-    client = EvolutionLLMClient(
+    client = OpenRouterLLMClient(
         api_key="test-key",
         api_base="http://dummy",
-        model_dev="dev-model",
+        model="primary-model",
         client=fake_client,
         max_retries=1,
         backoff_factor=0.5,
@@ -125,6 +123,37 @@ async def test_generate_retries_on_retryable_error(monkeypatch):
 
     assert result == "after-retry"
     assert sleeps == pytest.approx([0.5], rel=0.1)
-    assert models_called == ["dev-model", "dev-model"]
+    assert models_called == ["primary-model", "primary-model"]
 
+
+def test_openrouter_defaults():
+    client = OpenRouterLLMClient(
+        api_key="test-key",
+        client=FakeOpenAI(responses=[], models_called=[]),
+    )
+
+    assert client.api_base == "https://openrouter.ai/api/v1"
+    assert client.model == "google/gemini-3.7-flash"
+    assert client.fallback_model == "openai/gpt-5.6-luna"
+    assert client.reasoning_effort == "low"
+
+
+def test_factory_returns_none_without_openrouter_key(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    assert build_openrouter_llm_client_from_env() is None
+
+
+def test_factory_reads_openrouter_environment(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "primary-model")
+    monkeypatch.setenv("OPENROUTER_FALLBACK_MODEL", "fallback-model")
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "low")
+
+    client = build_openrouter_llm_client_from_env()
+
+    assert client is not None
+    assert client.model == "primary-model"
+    assert client.fallback_model == "fallback-model"
+    assert client.reasoning_effort == "low"
 
