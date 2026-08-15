@@ -1,6 +1,6 @@
-# MOEX Market Analyst Agent (Evolution AI Agents + MCP)
+# MOEX Market Analyst Agent (OpenRouter + MCP)
 
-Мультиагентное решение для анализа рынка Московской биржи: A2A-агент использует MCP-серверы для данных MOEX и риск-расчётов, формирует дашборды и человекочитаемые ответы для CFO/аналитиков. Агент вызывает LLM **только через Evolution Foundation Models API** (`https://foundation-models.api.cloud.ru/v1`), умеет работать на платформе Evolution AI Agents и поддерживает локальный запуск через `docker-compose`.
+Мультиагентное решение для анализа рынка Московской биржи: A2A-агент использует MCP-серверы для данных MOEX и расчётов риска, формирует панели показателей и человекочитаемые ответы для финансовых директоров и аналитиков. Языковые модели вызываются через OpenRouter, а весь стек можно запустить локально через Docker Compose.
 
 ---
 
@@ -11,7 +11,7 @@
 
 ## Краткая архитектура
 - `packages/agent-service` — A2A-агент (FastAPI `/a2a`, `/agui`), оркестратор сабагентов:
-  - `research_planner` (LLM-планировщик через Evolution FM),
+  - `research_planner` (планировщик через OpenRouter),
   - `market_data` (тулзы MOEX ISS MCP),
   - `risk_analytics` (тулзы Risk MCP),
   - `dashboard` (детерминированный JSON-дашборд),
@@ -29,7 +29,7 @@
 - `apps/web/` — веб-UI.
 - `env.example` — шаблон переменных.
 - `docker-compose.yml` — локальный стек (mcp + агент + web).
-- `docs/EVOLUTION_DEPLOY.md` — детали деплоя в Evolution AI Agents.
+- `docs/OPENROUTER_DEPLOY.md` — настройка OpenRouter и развёртывание.
 
 ## Документация по сервисам
 - `moex_iss_mcp/README.md` — запуск и переменные MCP данных MOEX ISS.
@@ -41,7 +41,7 @@
 Скопируйте `env.example` → `.env` и заполните секреты.
 
 Ключевые переменные:
-- LLM/Evolution: `LLM_API_KEY` (или `EVOLUTION_SERVICE_ACCOUNT_KEY_ID`/`SECRET`), `LLM_API_BASE=https://foundation-models.api.cloud.ru/v1`, `LLM_MODEL_MAIN`, `LLM_MODEL_FALLBACK`, `LLM_MODEL_DEV`.
+- OpenRouter: `OPENROUTER_API_KEY`, `OPENROUTER_API_BASE`, `OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODEL`, `OPENROUTER_REASONING_EFFORT`, `OPENROUTER_SITE_URL`, `OPENROUTER_APP_NAME`.
 - Агент: `AGENT_PORT`, `AGENT_ENABLE_DEBUG`, `AGENT_STEP_TIMEOUT_SECONDS`, `MOEX_ISS_MCP_URL`, `RISK_ANALYTICS_MCP_URL`.
 - MCP (данные): `PORT`, `MOEX_ISS_BASE_URL`, `MOEX_ISS_RATE_LIMIT_RPS`, `MOEX_API_KEY` (если нужен), `ENABLE_MONITORING`, `OTEL_*`.
 - MCP (риск): `RISK_MCP_PORT`, `RISK_MAX_*`, `RISK_DEFAULT_INDEX_TICKER`, `RISK_ENABLE_MONITORING`, `RISK_OTEL_*`.
@@ -53,9 +53,9 @@
 1) Зависимости: Docker + Docker Compose, Python 3.12+, `uv` (если нужны локальные прогоны без контейнеров).
 2) Подготовка окружения:
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 cp env.example .env
-# укажите LLM_API_KEY, MOEX_API_KEY при необходимости
+# укажите OPENROUTER_API_KEY и при необходимости MOEX_API_KEY
 ```
 3) Запуск стека:
 ```bash
@@ -84,24 +84,26 @@ uv run python -m risk_analytics_mcp.main     # порт 8010
 uv run uvicorn agent_service.server:app --host 0.0.0.0 --port 8100
 ```
 
-## Деплой в Cloud.ru Evolution AI Agents (prod/dev)
-Смотри `docs/EVOLUTION_DEPLOY.md` для полного чек-листа. Кратко:
-1) Соберите образы для `linux/amd64` и запушьте в Registry проекта:
+## Развёртывание
+
+Смотрите `docs/OPENROUTER_DEPLOY.md` для полного перечня действий. Кратко:
+
+1) Соберите образы для `linux/amd64` и отправьте их в хранилище образов:
 ```bash
 docker buildx build --platform linux/amd64 -t <registry>/<project>/moex-iss-mcp:<tag> -f moex_iss_mcp/Dockerfile .
 docker buildx build --platform linux/amd64 -t <registry>/<project>/risk-analytics-mcp:<tag> -f risk_analytics_mcp/Dockerfile .
 docker buildx build --platform linux/amd64 -t <registry>/<project>/moex-market-analyst-agent:<tag> -f packages/agent-service/Dockerfile .
 docker push <registry>/<project>/<image>:<tag>
 ```
-2) Зарегистрируйте MCP (каждый отдельно):
+2) Разверните каждый MCP-сервер отдельно:
    - Endpoint `/mcp`, Health `/health`, Metrics `/metrics`, транспорт `streamable-http`.
-   - Импортируйте `mcp-server-catalog.yaml`.
-   - Укажите rawEnvs/secretEnvs (см. таблицы в `EVOLUTION_DEPLOY.md`).
-3) Зарегистрируйте агента:
+   - При необходимости используйте `mcp-server-catalog.yaml`.
+   - Передайте переменные окружения из таблиц в `OPENROUTER_DEPLOY.md`.
+3) Разверните агента:
    - Endpoint A2A: `POST /a2a`, Health: `GET /health`.
    - Подключённые MCP: `MOEX_ISS_MCP_URL`, `RISK_ANALYTICS_MCP_URL`.
-   - Секреты: обязательный `AGENT_API_KEY`, `LLM_API_KEY` и `MOEX_API_KEY` при необходимости.
-4) Платформа: linux/amd64, без stateful зависимостей.
+   - Секреты: обязательные `AGENT_API_KEY`, `OPENROUTER_API_KEY` и `MOEX_API_KEY` при необходимости.
+4) Используйте `linux/amd64`; постоянное локальное состояние сервисам не требуется.
 
 ## MCP инструменты (каталог)
 - Данные MOEX (`moex_iss_mcp/mcp_tools.json`): `get_security_snapshot`, `get_ohlcv_timeseries`, `get_index_constituents_metrics`.
@@ -142,7 +144,7 @@ curl -X POST http://localhost:8100/a2a \
 
 ## Траблшутинг
 - MCP недоступен: проверьте `MOEX_ISS_MCP_URL` / `RISK_ANALYTICS_MCP_URL`, health и таймауты.
-- Ошибка LLM: убедитесь в `LLM_API_KEY` и доступности `https://foundation-models.api.cloud.ru/v1`.
+- Ошибка языковой модели: проверьте `OPENROUTER_API_KEY`, остаток средств и доступность `https://openrouter.ai/api/v1`.
 - Нет данных по тикеру: используйте реальные тикеры MOEX (SBER, GAZP, LKOH, IMOEX).
 
 ## Лицензия и ограничения

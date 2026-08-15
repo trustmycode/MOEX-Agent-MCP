@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional
 
-from agent_service.llm import build_evolution_llm_client_from_env
+from agent_service.llm import build_openrouter_llm_client_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class QueryParser:
         self.min_confidence = min_confidence
         self._llm_client = None
         if llm_callback is None:
-            self._llm_client = build_evolution_llm_client_from_env()
+            self._llm_client = build_openrouter_llm_client_from_env()
         self.llm_callback = llm_callback or (
             (lambda q: self._llm_fallback(q)) if self._llm_client else None
         )

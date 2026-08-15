@@ -79,7 +79,7 @@ sequenceDiagram
     participant EX as ExplainerSubagent
     participant MCP_M as moex-iss-mcp
     participant MCP_R as risk-analytics-mcp
-    participant FM as Foundation Models
+    participant FM as OpenRouter
 
     U->>O: A2A-запрос (issuer_peers_compare, ticker=SBER)
     activate O
@@ -195,7 +195,7 @@ sequenceDiagram
     participant EX as ExplainerSubagent
     participant MCP_R as risk-analytics-mcp
     participant MCP_K as kb-rag-mcp
-    participant FM as Foundation Models
+    participant FM as OpenRouter
 
     U->>O: A2A-запрос (portfolio_risk)
     activate O
@@ -326,7 +326,7 @@ sequenceDiagram
     participant DS as DashboardSubagent
     participant EX as ExplainerSubagent
     participant MCP_R as risk-analytics-mcp
-    participant FM as Foundation Models
+    participant FM as OpenRouter
 
     U->>O: A2A-запрос (cfo_liquidity_report)
     activate O

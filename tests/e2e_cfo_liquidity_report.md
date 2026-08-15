@@ -5,7 +5,7 @@
 ## 1. Запуск сервера
 
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 python -m risk_analytics_mcp.main
 ```
 

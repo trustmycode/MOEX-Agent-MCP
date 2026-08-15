@@ -10,13 +10,13 @@
 ## Как запустить MCP
 ### Вариант A: docker-compose (рекомендуется)
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 make local-up   # поднимет moex-iss-mcp:8000, risk-analytics-mcp:8010, agent:8100, web:3000
 ```
 
 ### Вариант B: локально без Docker
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 uv run python -m moex_iss_mcp.main           # порт 8000
 uv run python -m risk_analytics_mcp.main     # порт 8010 (в другом терминале)
 ```
@@ -24,7 +24,7 @@ uv run python -m risk_analytics_mcp.main     # порт 8010 (в другом т
 
 ## Запуск E2E/интерактивных тестов
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP/packages/agent-service
+cd /Users/Admin/CursorProject/moex-agentic-system/packages/agent-service
 python examples/e2e_test.py                  # интерактивное меню
 ```
 Переопределить адреса MCP:

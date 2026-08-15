@@ -413,11 +413,11 @@ OpenInference использует те же переменные окружен
 
     `},`
 
-    `"EVOLUTION_SERVICE_ACCOUNT_KEY_SECRET": {`
+    `"OPENROUTER_API_KEY": {`
 
       `"isRequired": true,`
 
-      `"description": "Секрет сервисного аккаунта Evolution"`
+      `"description": "Ключ доступа OpenRouter"`
 
     `}`
 

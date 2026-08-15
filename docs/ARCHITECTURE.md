@@ -2,21 +2,17 @@
 
 ## 1. Назначение и контекст
 
-**moex-market-analyst-agent** — бизнес-ориентированный AI-агент для анализа российского фондового рынка (акции, индексы, облигации) на платформе **Cloud.ru Evolution AI Agents**.
+**moex-market-analyst-agent** — бизнес-ориентированный агент для анализа российского фондового рынка: акций, индексов и облигаций.
 
 Агент:
 
 - принимает запросы на естественном языке (через A2A-интерфейс);
-- использует **Evolution Foundation Models** по официальному API `https://foundation-models.api.cloud.ru/v1/`;
+- использует языковые модели через OpenRouter по адресу `https://openrouter.ai/api/v1`;
 - получает рыночные данные через **кастомный MCP-сервер поверх MOEX ISS API**;
 - при необходимости обращается к дополнительным MCP (например, RAG MCP);
 - формирует человекочитаемые отчёты и рекомендации для финансовых ролей.
 
-Решение спроектировано в соответствии с:
-
-- ТЗ трека **MCP for Business AI Transformation**;
-- Q&A с организаторами хакатона;
-- документацией **Cloud.ru Evolution AI Agents / Foundation Models**.
+Решение спроектировано вокруг протоколов A2A и MCP, строгих схем данных и изолированных специализированных агентов.
 
 ---
 
@@ -24,7 +20,7 @@
 
 ### 2.0. Внешний агент и внутренние сабагенты
 
-С точки зрения платформы Evolution AI Agents существует **один внешний A2A-агент** `moex-market-analyst-agent`.  
+С точки зрения внешнего клиента существует **один A2A-агент** `moex-market-analyst-agent`.
 Внутри он реализован через набор логических сабагентов, которые соответствуют компонентам на C4 L3/L4:
 
 - `ResearchPlannerSubagent` — определяет `scenario_type` по запросу пользователя (single_security_overview, compare_securities, index_risk_scan, portfolio_risk_basic, сценарии 5/7/9 и RAG‑сценарии), строит план действий и ограничивает его согласно basic‑режиму планировщика.
@@ -77,20 +73,15 @@
 
 ---
 
-## 3. Ограничения хакатона и среды
+## 3. Ограничения среды
 
-### 3.1. Платформа и LLM
+### 3.1. Платформа и языковые модели
 
-- Все компоненты (агент и MCP) **обязаны** быть развёрнуты в **Cloud.ru Evolution AI Agents**.
-- Единственный допустимый LLM-провайдер в прод-версии — **Evolution Foundation Models**:
-  - `LLM_API_BASE = https://foundation-models.api.cloud.ru/v1/`.
-- Финальный выбор Foundation Models и правило выбора по окружению:
-  - `LLM_MODEL_MAIN = Qwen3-235B` — основная модель в `ENVIRONMENT=prod`;
-  - `LLM_MODEL_FALLBACK = gpt-oss-120b` — аварийный fallback при retryable-ошибках MAIN (timeout, сетевые, 5xx/429);
-  - `LLM_MODEL_DEV = GigaChat3-10B` — модель для `ENVIRONMENT=dev`;
-  - клиенты LLM используют MAIN в проде с одним повтором на FALLBACK при ошибках и DEV в среде разработки.
-- Внешние LLM API (OpenAI, DeepSeek, Anthropic и т.п.) **запрещены** в финальной сдаче:
-  - допустимы только локально/для отладки, но не в прод-конфигурации.
+- Все обращения к языковым моделям проходят через OpenRouter.
+- `OPENROUTER_MODEL=google/gemini-3.7-flash` задаёт основную модель.
+- `OPENROUTER_FALLBACK_MODEL=openai/gpt-5.6-luna` задаёт резервную модель при временных ошибках.
+- `OPENROUTER_REASONING_EFFORT=low` ограничивает стоимость рассуждений.
+- Без `OPENROUTER_API_KEY` агент сохраняет работоспособность с локальными имитационными ответами.
 
 ### 3.2. Доступ к данным
 
@@ -110,7 +101,7 @@
 ### 3.4. Безопасность и секреты
 
 - Все секреты (ключи, токены, пароли) хранятся:
-  - только в **Secret Manager** и/или переменных окружения Cloud.ru;
+  - только в хранилище секретов и/или переменных окружения среды развёртывания;
   - **не** хардкодятся в репозитории.
 - Логи не должны содержать секреты в открытом виде.
 
@@ -162,11 +153,11 @@ C4Context
         System(voice_gateway, "Voice Gateway", "ASR/TTS Proxy", "Принимает аудио от Web UI, вызывает ASR (Whisper), проксирует текст в A2A-агента.")
     }
 
-    System_Ext(fm, "Evolution Foundation Models API", "Cloud.ru", "LLM, используемая Orchestrator и Subagents.")
+    System_Ext(fm, "OpenRouter", "API языковых моделей", "Основная и резервная модели для планирования и объяснения.")
     System_Ext(moex_iss, "MOEX ISS API", "HTTP JSON API", "Публичный API Московской биржи.")
-    System_Ext(asr, "ASR (Whisper v3)", "Cloud.ru Foundation Models", "Распознавание речи для голосового интерфейса.")
+    System_Ext(asr, "ASR (Whisper v3)", "Внешняя служба распознавания", "Распознавание речи для голосового интерфейса.")
 
-    Rel(user, orchestrator, "NL-запросы", "A2A UI Evolution / интеграции")
+    Rel(user, orchestrator, "NL-запросы", "A2A / интеграции")
     Rel(user, voice_gateway, "Голосовые запросы (v2+)", "Web UI → Voice Gateway (audio)")
     Rel(voice_gateway, asr, "Распознавание речи", "FM ASR API")
     Rel(voice_gateway, orchestrator, "A2A-запросы/ответы", "HTTP + JSON")
@@ -212,7 +203,7 @@ C4Context
 
 - Python 3.12.
 - Google **ADK** + **A2A SDK** (шаблон `lab2-adk-agent`).
-- OpenAI-совместимый клиент к Foundation Models (`/chat/completions`).
+- OpenAI-совместимый клиент OpenRouter (`/chat/completions`).
 
 **Переменные окружения (минимум):**
 
@@ -223,12 +214,13 @@ C4Context
   - `AGENT_VERSION=1.0.0`
   - `AGENT_SYSTEM_PROMPT` — системный промпт (EN), описывающий роль, ограничения, инструменты.
 
-- LLM / FM:
+- OpenRouter:
 
-  - `LLM_API_BASE=https://foundation-models.api.cloud.ru/v1`
-  - `LLM_MODEL=<имя модели из каталога FM>`
-  - `LLM_API_KEY` или `EVOLUTION_SERVICE_ACCOUNT_KEY_ID` + `EVOLUTION_SERVICE_ACCOUNT_KEY_SECRET`
-  - `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`
+  - `OPENROUTER_API_BASE=https://openrouter.ai/api/v1`
+  - `OPENROUTER_MODEL=google/gemini-3.7-flash`
+  - `OPENROUTER_FALLBACK_MODEL=openai/gpt-5.6-luna`
+  - `OPENROUTER_REASONING_EFFORT=low`
+  - `OPENROUTER_API_KEY=<секрет>`
 
 - MCP:
 
@@ -258,7 +250,7 @@ C4Context
 
 #### 5.1.5. Agent Card (A2A)
 
-Агент обязан публиковать корректный **Agent Card** в соответствии со спецификацией A2A Evolution AI Agents. Agent Card как минимум содержит:
+Агент может публиковать корректную **Agent Card** в соответствии со спецификацией A2A. Карточка как минимум содержит:
 
 - идентификатор агента (`AGENT_NAME`, `AGENT_VERSION`);
 
@@ -266,7 +258,7 @@ C4Context
 
 - сведения о поддерживаемых протоколах (HTTP + JSON, A2A);
 
-- информацию об аутентификации (использование сервисного аккаунта Evolution);
+- информацию об аутентификации;
 
 - список задействованных MCP-серверов (URI из `MCP_URL`);
 
@@ -400,7 +392,7 @@ Agent Card используется платформой и внешними к�
 sequenceDiagram
     participant U as User
     participant A as AI Agent (A2A)
-    participant FM as Evolution FM
+    participant FM as OpenRouter
     participant MCP1 as moex-iss-mcp
     participant ISS as MOEX ISS API
     participant MCP2 as kb-rag-mcp (optional)

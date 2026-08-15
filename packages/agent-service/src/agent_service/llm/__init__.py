@@ -1,10 +1,11 @@
-"""LLM-клиенты для работы с Evolution Foundation Models."""
+"""Клиенты языковых моделей для работы через OpenRouter."""
 
-from .client import EvolutionLLMClient, build_evolution_llm_client_from_env
+from .client import (
+    OpenRouterLLMClient,
+    build_openrouter_llm_client_from_env,
+)
 
 __all__ = [
-    "EvolutionLLMClient",
-    "build_evolution_llm_client_from_env",
+    "OpenRouterLLMClient",
+    "build_openrouter_llm_client_from_env",
 ]
-
-

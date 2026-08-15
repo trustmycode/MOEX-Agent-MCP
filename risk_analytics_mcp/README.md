@@ -24,7 +24,7 @@ MCP-сервер для расчёта портфельного риска, ко
 
 ## Быстрый старт локально
 ```bash
-cd /Users/Admin/CursorProject/MOEX-Agent-MCP
+cd /Users/Admin/CursorProject/moex-agentic-system
 uv sync
 uv run python -m risk_analytics_mcp.main   # http://localhost:8010
 curl http://localhost:8010/health
@@ -36,7 +36,7 @@ curl http://localhost:8010/health
 - Запуск: `docker run -p 8010:8010 --env-file env.example risk-analytics-mcp:local`
 - В составе стека: `make local-up` (compose в корне).
 
-## Деплой в Evolution AI Agents
+## Развёртывание MCP-сервера
 - Сборка/публикация (linux/amd64):
 ```bash
 docker buildx build --platform linux/amd64 -t <registry>/<project>/risk-analytics-mcp:<tag> -f risk_analytics_mcp/Dockerfile .

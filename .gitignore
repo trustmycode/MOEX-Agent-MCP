@@ -32,6 +32,7 @@ dist/
 pip-wheel-metadata/
 uv.lock
 .docker-cache/
+.worktrees/
 
 # Logs / local data
 *.log

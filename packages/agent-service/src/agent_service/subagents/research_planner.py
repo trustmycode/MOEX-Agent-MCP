@@ -22,13 +22,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from ..core.base_subagent import BaseSubagent
 from ..core.context import AgentContext
 from ..core.result import SubagentResult
-from ..llm.client import EvolutionLLMClient, build_evolution_llm_client_from_env
+from ..llm.client import build_openrouter_llm_client_from_env
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient(Protocol):
-    """Протокол LLM-клиента, совместимый с EvolutionLLMClient и моком."""
+    """Протокол клиента языковой модели, совместимый с OpenRouter и имитацией."""
 
     async def generate(
         self,
@@ -45,7 +45,7 @@ class MockPlannerLLMClient:
     """
     Запасной мок для планировщика.
 
-    Используется, если переменная окружения LLM_API_KEY не задана.
+    Используется, если переменная окружения OPENROUTER_API_KEY не задана.
     """
 
     async def generate(
@@ -233,7 +233,8 @@ class ResearchPlannerSubagent(BaseSubagent):
         """
         Args:
             llm_client: Явно переданный LLM-клиент. Если не указан, пытаемся
-                        инициализировать EvolutionLLMClient из ENV, иначе — мок.
+                        инициализировать OpenRouterLLMClient из окружения,
+                        иначе — имитационный клиент.
         """
         super().__init__(
             name=self.SUBAGENT_NAME,
@@ -243,7 +244,7 @@ class ResearchPlannerSubagent(BaseSubagent):
 
         self.llm_client: LLMClient = (
             llm_client
-            or build_evolution_llm_client_from_env()
+            or build_openrouter_llm_client_from_env()
             or MockPlannerLLMClient()
         )
 
@@ -687,5 +688,4 @@ class ResearchPlannerSubagent(BaseSubagent):
                 seen.add("market_data")
 
         return unique_steps[: self.MAX_STEPS]
-
 
